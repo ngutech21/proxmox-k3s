@@ -1,5 +1,9 @@
 # proxmox-k3s
 
+[![Terraform](https://img.shields.io/github/actions/workflow/status/ngutech21/proxmox-k3s/terraform.yml?branch=master&label=Terraform)](https://github.com/ngutech21/proxmox-k3s/actions/workflows/terraform.yml)
+[![Ansible](https://img.shields.io/github/actions/workflow/status/ngutech21/proxmox-k3s/ansible.yml?branch=master&label=Ansible)](https://github.com/ngutech21/proxmox-k3s/actions/workflows/ansible.yml)
+[![Actionlint](https://img.shields.io/github/actions/workflow/status/ngutech21/proxmox-k3s/actionlint.yml?branch=master&label=Actionlint)](https://github.com/ngutech21/proxmox-k3s/actions/workflows/actionlint.yml)
+
 Small homelab stack for running a highly available `k3s` cluster on top of Proxmox VMs.
 
 ## Architecture

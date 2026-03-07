@@ -30,6 +30,12 @@ This repo builds a homelab HA `k3s` cluster on Proxmox VMs.
 - Prefer running from a VS Code dev container.
 - Use [`justfile`](justfile) as the main workflow entrypoint.
 
+## Workflow & Documentation Rules
+
+- Always write documentation and user-facing text in English.
+- Use intentional commits with clear, scoped commit messages.
+- Create and follow a short implementation plan before making larger changes.
+
 ## Pre-Commit Checks
 
 - Always run `terraform fmt` for Terraform changes.

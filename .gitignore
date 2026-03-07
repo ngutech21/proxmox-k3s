@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/crash.log
+**/crash.*.log
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+**/*.tfvars
+**/*.tfvars.json
+
+# Ansible
+*.retry
+**/*.retry
+**/.ansible/
+**/ansible.log
+**/vault-pass.txt
+**/.vault_pass
+**/.vault-password-file
+**/hosts.yml
+**/hosts.ini
+**/inventory.yml
+**/inventory.ini
+
+
+# Helm / Helmfile
+**/charts/*.tgz
+**/Chart.lock
+**/.helmfile/
+**/helmfile.lock
+**/helmfile.yaml.lock

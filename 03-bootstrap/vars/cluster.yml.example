@@ -1,0 +1,18 @@
+# Required: set the exact k3s version you want to install.
+# Example: v1.33.5+k3s1
+k3s_version: ""
+
+# Control-plane API endpoint (kube-vip virtual IP)
+api_endpoint: "192.168.178.10"
+
+# kube-vip settings
+kube_vip_version: "v0.8.2"
+kube_vip_cloud_provider_version: "v0.0.12"
+kube_vip_service_range: "192.168.178.251-192.168.178.255"
+
+# Install k3s without bundled ingress/lb (Traefik comes later via 04-core)
+extra_server_args: >-
+  --disable traefik
+  --disable servicelb
+  --tls-san 192.168.178.10
+  --node-taint node-role.kubernetes.io/control-plane=true:NoSchedule

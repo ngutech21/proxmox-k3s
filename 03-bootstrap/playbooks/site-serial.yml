@@ -1,0 +1,179 @@
+---
+- name: Cluster prep
+  hosts: k3s_cluster
+  gather_facts: true
+  become: true
+  roles:
+    - role: k3s.orchestration.prereq
+    - role: k3s.orchestration.airgap
+    - role: k3s.orchestration.raspberrypi
+
+- name: Setup first K3S server
+  hosts: server[0]
+  become: true
+  serial: 1
+  roles:
+    - role: k3s.orchestration.k3s_server
+
+- name: Setup remaining K3S servers
+  hosts: server[1:]
+  become: true
+  roles:
+    - role: k3s.orchestration.k3s_server
+
+- name: Setup K3S agent
+  hosts: agent
+  become: true
+  roles:
+    - role: k3s.orchestration.k3s_agent
+
+- name: Verify K3S server services are active
+  hosts: server
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Wait for k3s server service to become active
+      ansible.builtin.systemd_service:
+        name: k3s
+      register: k3s_server_service_state
+      changed_when: false
+      retries: 18
+      delay: 10
+      until: k3s_server_service_state.status.ActiveState == "active"
+
+- name: Verify K3S agent services are active
+  hosts: agent
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Wait for k3s agent service to become active
+      ansible.builtin.systemd_service:
+        name: k3s-agent
+      register: k3s_agent_service_state
+      changed_when: false
+      retries: 18
+      delay: 10
+      until: k3s_agent_service_state.status.ActiveState == "active"
+
+- name: Verify node-local flannel networking
+  hosts: k3s_cluster
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Check flannel subnet file
+      ansible.builtin.stat:
+        path: /run/flannel/subnet.env
+      register: flannel_subnet_env
+
+    - name: Fail when flannel subnet file is missing
+      ansible.builtin.assert:
+        that:
+          - flannel_subnet_env.stat.exists
+        fail_msg: >-
+          Flannel is not initialized on {{ inventory_hostname }}.
+          Missing /run/flannel/subnet.env after k3s bootstrap/join.
+
+    - name: Read flannel subnet file
+      ansible.builtin.slurp:
+        path: /run/flannel/subnet.env
+      register: flannel_subnet_env_contents
+
+    - name: Decode flannel subnet file
+      ansible.builtin.set_fact:
+        flannel_subnet_env_text: "{{ flannel_subnet_env_contents.content | b64decode }}"
+
+    - name: Extract flannel network settings
+      ansible.builtin.set_fact:
+        flannel_network_cidr: >-
+          {{
+            flannel_subnet_env_text
+            | regex_findall('^FLANNEL_NETWORK=(.+)$', multiline=True)
+            | first
+            | default('')
+          }}
+        flannel_subnet_cidr: >-
+          {{
+            flannel_subnet_env_text
+            | regex_findall('^FLANNEL_SUBNET=(.+)$', multiline=True)
+            | first
+            | default('')
+          }}
+
+    - name: Fail when flannel network settings are incomplete
+      ansible.builtin.assert:
+        that:
+          - flannel_network_cidr | length > 0
+          - flannel_subnet_cidr | length > 0
+        fail_msg: >-
+          Flannel network metadata is incomplete on {{ inventory_hostname }}.
+          Expected FLANNEL_NETWORK and FLANNEL_SUBNET in /run/flannel/subnet.env.
+
+    - name: Check flannel vxlan interface
+      ansible.builtin.command: ip link show flannel.1
+      register: flannel_link
+      changed_when: false
+
+    - name: Check route to flannel subnet
+      ansible.builtin.command: ip route show "{{ flannel_subnet_cidr }}"
+      register: flannel_subnet_route
+      changed_when: false
+
+    - name: Check route to cluster pod network
+      ansible.builtin.command: ip route show "{{ flannel_network_cidr }}"
+      register: flannel_network_route
+      changed_when: false
+
+    - name: Fail when flannel routing is missing
+      ansible.builtin.assert:
+        that:
+          - flannel_link.rc == 0
+          - flannel_subnet_route.stdout | trim | length > 0
+          - flannel_network_route.stdout | trim | length > 0
+        fail_msg: >-
+          Flannel pod routing is incomplete on {{ inventory_hostname }}.
+          flannel.1 or pod CIDR routes are missing after k3s bootstrap/join.
+
+- name: Verify all expected nodes are Ready
+  hosts: server[0]
+  become: true
+  gather_facts: false
+
+  vars:
+    expected_cluster_nodes: "{{ (groups['server'] + groups['agent']) | sort }}"
+
+  tasks:
+    - name: Wait until all expected nodes are Ready
+      ansible.builtin.command: kubectl get nodes --no-headers
+      register: kubectl_nodes
+      changed_when: false
+      retries: 24
+      delay: 10
+      until:
+        - kubectl_nodes.rc == 0
+        - expected_cluster_nodes | difference(ready_node_names) | length == 0
+        - ready_node_names | difference(expected_cluster_nodes) | length == 0
+      vars:
+        ready_node_names: >-
+          {{
+            kubectl_nodes.stdout_lines
+            | select('match', '^[^[:space:]]+[[:space:]]+Ready([[:space:]]|$)')
+            | map('regex_replace', '^([^[:space:]]+).*$', '\\1')
+            | list
+            | sort
+          }}
+
+    - name: Show final Ready node set
+      ansible.builtin.debug:
+        msg: "Ready nodes after bootstrap: {{ ready_node_names | join(', ') }}"
+      vars:
+        ready_node_names: >-
+          {{
+            kubectl_nodes.stdout_lines
+            | select('match', '^[^[:space:]]+[[:space:]]+Ready([[:space:]]|$)')
+            | map('regex_replace', '^([^[:space:]]+).*$', '\\1')
+            | list
+            | sort
+          }}

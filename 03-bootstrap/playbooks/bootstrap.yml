@@ -1,0 +1,57 @@
+---
+- name: Pre-stage kube-vip manifests on server nodes
+  hosts: server
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Ensure required bootstrap variables are set
+      ansible.builtin.assert:
+        that:
+          - token is defined
+          - token | length > 15
+          - k3s_version is defined
+          - k3s_version | length > 0
+          - api_endpoint is defined
+          - api_endpoint | length > 0
+          - kube_vip_service_range is defined
+          - kube_vip_service_range | length > 0
+        fail_msg: >-
+          Missing required bootstrap vars. Provide vars/cluster.yml and vars/secret.vault.yml
+          (vault-encrypted), then rerun.
+
+    - name: Set kube-vip network interface from default route interface
+      ansible.builtin.set_fact:
+        kube_vip_interface: "{{ ansible_facts['default_ipv4']['interface'] }}"
+      when: kube_vip_interface is not defined or kube_vip_interface | length == 0
+
+    - name: Ensure k3s manifests directory exists
+      ansible.builtin.file:
+        path: /var/lib/rancher/k3s/server/manifests
+        state: directory
+        mode: "0755"
+
+  tasks:
+    - name: Render kube-vip RBAC manifest
+      ansible.builtin.template:
+        src: ../manifests/00-kube-vip-rbac.yaml.j2
+        dest: /var/lib/rancher/k3s/server/manifests/00-kube-vip-rbac.yaml
+        mode: "0644"
+
+    - name: Render kube-vip daemonset manifest
+      ansible.builtin.template:
+        src: ../manifests/01-kube-vip-ds.yaml.j2
+        dest: /var/lib/rancher/k3s/server/manifests/01-kube-vip-ds.yaml
+        mode: "0644"
+
+    - name: Render kube-vip cloud provider manifest
+      ansible.builtin.template:
+        src: ../manifests/02-kube-vip-cloud-provider.yaml.j2
+        dest: /var/lib/rancher/k3s/server/manifests/02-kube-vip-cloud-provider.yaml
+        mode: "0644"
+
+    - name: Render kube-vip cloud config manifest
+      ansible.builtin.template:
+        src: ../manifests/03-kube-vip-cloud-config.yaml.j2
+        dest: /var/lib/rancher/k3s/server/manifests/03-kube-vip-cloud-config.yaml
+        mode: "0644"

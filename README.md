@@ -38,14 +38,14 @@ Core services in this repo include Traefik for ingress, Longhorn for distributed
 
 ## Repo Layout
 
-- [`01-provision`](/Users/steffen/projects/proxmox-k3s/01-provision): Terraform for Proxmox VMs
-- [`02-configure`](/Users/steffen/projects/proxmox-k3s/02-configure): Ansible base host preparation
-- [`03-bootstrap`](/Users/steffen/projects/proxmox-k3s/03-bootstrap): `k3s` cluster bootstrap
-- [`04-core`](/Users/steffen/projects/proxmox-k3s/04-core): Helmfile-managed platform services
-- [`05-examples`](/Users/steffen/projects/proxmox-k3s/05-examples): example workloads for testing the setup
+- [`01-provision`](01-provision): Terraform for Proxmox VMs
+- [`02-configure`](02-configure): Ansible base host preparation
+- [`03-bootstrap`](03-bootstrap): `k3s` cluster bootstrap
+- [`04-core`](04-core): Helmfile-managed platform services
+- [`05-examples`](05-examples): example workloads for testing the setup
 
 ## Recommended Usage
 
 This repo is best used from a VS Code dev container so tools like `terraform`, `ansible`, `helm`, `helmfile`, and `kubectl` stay consistent across machines.
 
-The main workflow is exposed through the [`justfile`](/Users/steffen/projects/proxmox-k3s/justfile).
+The main workflow is exposed through the [`justfile`](justfile).

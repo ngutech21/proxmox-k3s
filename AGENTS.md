@@ -28,4 +28,12 @@ This repo builds a homelab HA `k3s` cluster on Proxmox VMs.
 ## Working Notes
 
 - Prefer running from a VS Code dev container.
-- Use [`justfile`](/Users/steffen/projects/proxmox-k3s/justfile) as the main workflow entrypoint.
+- Use [`justfile`](justfile) as the main workflow entrypoint.
+
+## Pre-Commit Checks
+
+- Always run `terraform fmt` for Terraform changes.
+- Always run `terraform validate` and `tflint` for Terraform changes.
+- Always run `ansible-lint` for Ansible changes.
+- Always run `actionlint` for GitHub Actions workflow changes.
+- Always run `helm lint` and `helmfile build` for Helm, Helmfile, chart, or values changes.

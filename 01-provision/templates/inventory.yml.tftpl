@@ -1,0 +1,27 @@
+all:
+  children:
+    k3s_cluster:
+      children:
+        server:
+          hosts:
+%{ for node in control_plane_nodes ~}
+            ${node.name}:
+              ansible_host: ${node.ip}
+              ansible_user: ${ansible_user}
+%{ if node.longhorn_disk_serial != null ~}
+              longhorn_disk_serial: ${node.longhorn_disk_serial}
+%{ endif ~}
+%{ endfor ~}
+        agent:
+%{ if length(worker_nodes) > 0 ~}
+          hosts:
+%{ for node in worker_nodes ~}
+            ${node.name}:
+              ansible_host: ${node.ip}
+              ansible_user: ${ansible_user}
+              longhorn_disk_serial: ${node.longhorn_disk_serial}
+%{ endfor ~}
+%{ else ~}
+          hosts: {}
+%{ endif ~}
+    

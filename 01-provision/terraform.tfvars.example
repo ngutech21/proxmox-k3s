@@ -1,0 +1,34 @@
+# Proxmox API
+proxmox_api_url          = "https://proxmox.local:8006/api2/json"
+proxmox_api_token_id     = "terraform@pve!k3s"
+proxmox_api_token_secret = "REPLACE_ME"
+proxmox_insecure_tls     = true
+
+
+# Cluster node layout (explicit placement)
+cluster_nodes = [
+  { name = "k3s-cp-1", role = "control_plane", proxmox_node = "pve-1", template_id = 201, vm_id = 301, ip = "10.30.0.11" },
+  { name = "k3s-cp-2", role = "control_plane", proxmox_node = "pve-2", template_id = 202, vm_id = 302, ip = "10.30.0.12" },
+  { name = "k3s-cp-3", role = "control_plane", proxmox_node = "pve-1", template_id = 201, vm_id = 303, ip = "10.30.0.13" },
+  { name = "k3s-wk-1", role = "worker", proxmox_node = "pve-2", template_id = 202, vm_id = 311, ip = "10.30.0.21" },
+]
+
+# VM defaults (optional per-node overrides in cluster_nodes)
+vm_cores                   = 2
+vm_memory_mb               = 4096
+vm_memory_max_mb           = 8192
+vm_disk_datastore          = "local-zfs"
+vm_cloudinit_datastore     = "local-zfs"
+vm_disk_size_gb            = 40
+vm_longhorn_disk_size_gb   = 300
+vm_longhorn_disk_datastore = "local-zfs"
+vm_network_bridge          = "vmbr0"
+vm_ip_cidr                 = 24
+
+# Network
+vm_gateway     = "10.30.0.1"
+vm_dns_servers = ["1.1.1.1", "8.8.8.8"]
+
+# Cloud-init user
+vm_username       = "ubuntu"
+vm_ssh_public_key = "ssh-ed25519 AAAA... replace-with-your-public-key"

@@ -45,7 +45,7 @@
 			"target": "/usr/local/share/minikube-localhost",
 			"type": "bind"
 		}
-	]
+	],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
@@ -53,8 +53,20 @@
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "kubectl version",
 
-	// Configure tool-specific properties.
-	// "customizations": {},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"docker.docker",
+				"ms-azuretools.vscode-containers",
+				"redhat.vscode-yaml",
+				"ms-kubernetes-tools.vscode-kubernetes-tools",
+				"nefrob.vscode-just-syntax",
+				"github.vscode-github-actions",
+				"hashicorp.terraform",
+				"ms-vscode-remote.remote-containers"
+			]
+		}
+	},
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"

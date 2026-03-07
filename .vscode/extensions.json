@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "docker.docker",
+    "ms-azuretools.vscode-containers",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "nefrob.vscode-just-syntax",
+    "github.vscode-github-actions",
+    "hashicorp.terraform",
+    "redhat.vscode-yaml",
+    "ms-vscode-remote.remote-containers"
+  ]
+}

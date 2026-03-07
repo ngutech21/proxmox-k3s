@@ -92,6 +92,8 @@ sync-config:
       exit 1
     fi
 
+    mkdir -p ../.generated
+
     terraform init
     terraform apply \
       -var-file="{{ terraform_var_file }}" \
@@ -115,6 +117,8 @@ provision-vms:
       echo "Missing {{ cluster_secrets }} (run 'just init-config' first)." >&2
       exit 1
     fi
+
+    mkdir -p ../.generated
 
     terraform init
     terraform apply \

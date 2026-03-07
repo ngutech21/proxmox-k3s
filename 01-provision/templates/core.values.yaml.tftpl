@@ -1,0 +1,13 @@
+cluster:
+  domainSuffix: "${domain_suffix}"
+  longhornHost: "${longhorn_host}"
+  certManager:
+    selfSignedIssuerName: "${cert_manager_selfsigned_issuer}"
+    caIssuerName: "${cert_manager_ca_issuer}"
+    rootCertificateName: "${cert_manager_root_cert}"
+    rootSecretName: "${cert_manager_root_secret}"
+    smokeTest:
+      enabled: ${cert_manager_enable_smoke_test}
+      name: "cert-manager-smoke-test"
+      namespace: "default"
+      host: "${cert_manager_smoke_host}"

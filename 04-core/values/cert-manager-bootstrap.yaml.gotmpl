@@ -1,10 +1,10 @@
 certManager:
-  selfSignedIssuerName: {{ env "CERT_MANAGER_SELFSIGNED_ISSUER" | default "selfsigned-bootstrap" | quote }}
-  caIssuerName: {{ env "CERT_MANAGER_CA_ISSUER" | default "homelab-ca" | quote }}
-  rootCertificateName: {{ env "CERT_MANAGER_ROOT_CERT" | default "homelab-root-ca" | quote }}
-  rootSecretName: {{ env "CERT_MANAGER_ROOT_SECRET" | default "homelab-root-ca-key-pair" | quote }}
+  selfSignedIssuerName: {{ .Values.cluster.certManager.selfSignedIssuerName | quote }}
+  caIssuerName: {{ .Values.cluster.certManager.caIssuerName | quote }}
+  rootCertificateName: {{ .Values.cluster.certManager.rootCertificateName | quote }}
+  rootSecretName: {{ .Values.cluster.certManager.rootSecretName | quote }}
   smokeTest:
-    enabled: {{ eq (env "CERT_MANAGER_ENABLE_SMOKE_TEST" | default "false") "true" }}
-    name: "cert-manager-smoke-test"
-    namespace: "default"
-    host: {{ env "CERT_MANAGER_SMOKE_HOST" | default (printf "smoke.%s" (env "DOMAIN_SUFFIX" | default "k3s.home")) | quote }}
+    enabled: {{ .Values.cluster.certManager.smokeTest.enabled }}
+    name: {{ .Values.cluster.certManager.smokeTest.name | quote }}
+    namespace: {{ .Values.cluster.certManager.smokeTest.namespace | quote }}
+    host: {{ .Values.cluster.certManager.smokeTest.host | quote }}

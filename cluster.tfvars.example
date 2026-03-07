@@ -1,9 +1,6 @@
 # Proxmox API
-proxmox_api_url          = "https://proxmox.local:8006/api2/json"
-proxmox_api_token_id     = "terraform@pve!k3s"
-proxmox_api_token_secret = "REPLACE_ME"
-proxmox_insecure_tls     = true
-
+proxmox_api_url      = "https://proxmox.local:8006/api2/json"
+proxmox_insecure_tls = true
 
 # Cluster node layout (explicit placement)
 cluster_nodes = [
@@ -32,3 +29,10 @@ vm_dns_servers = ["1.1.1.1", "8.8.8.8"]
 # Cloud-init user
 vm_username       = "ubuntu"
 vm_ssh_public_key = "ssh-ed25519 AAAA... replace-with-your-public-key"
+
+# Cluster bootstrap and core metadata
+k3s_version                    = "v1.33.5+k3s1"
+api_endpoint                   = "10.30.0.10"
+kube_vip_service_range         = "10.30.0.251-10.30.0.255"
+domain_suffix                  = "k3s.home"
+cert_manager_enable_smoke_test = false

@@ -1,0 +1,10 @@
+k3s_version: "${k3s_version}"
+api_endpoint: "${api_endpoint}"
+kube_vip_version: "${kube_vip_version}"
+kube_vip_cloud_provider_version: "${kube_vip_cloud_provider_version}"
+kube_vip_service_range: "${kube_vip_service_range}"
+extra_server_args: >-
+  --disable traefik
+  --disable servicelb
+  --tls-san ${api_endpoint}
+  --node-taint node-role.kubernetes.io/control-plane=true:NoSchedule

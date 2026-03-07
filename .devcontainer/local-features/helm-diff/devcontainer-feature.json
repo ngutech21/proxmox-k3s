@@ -1,0 +1,8 @@
+{
+	"id": "helm-diff",
+	"name": "Installs the helm-diff plugin",
+	"version": "1.0.0",
+	"installsAfter": [
+		"ghcr.io/devcontainers/features/kubectl-helm-minikube"
+	]
+}

@@ -8,5 +8,5 @@ longhornUI:
 ingress:
   enabled: true
   ingressClassName: traefik
-  host: {{ env "LONGHORN_HOST" | default "longhorn.k3s.home" | quote }}
+  host: {{ .Values.cluster.longhornHost | quote }}
   tls: false

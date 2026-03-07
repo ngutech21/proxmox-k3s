@@ -15,6 +15,12 @@ variable "proxmox_api_token_secret" {
   sensitive   = true
 }
 
+variable "cluster_bootstrap_token" {
+  description = "Shared k3s bootstrap token"
+  type        = string
+  sensitive   = true
+}
+
 variable "proxmox_insecure_tls" {
   description = "Set to true when Proxmox uses a self-signed certificate"
   type        = bool
@@ -75,6 +81,32 @@ variable "cluster_nodes" {
     ]) > 0
     error_message = "At least one enabled node is required in cluster_nodes."
   }
+}
+
+variable "k3s_version" {
+  description = "k3s version to install, for example v1.33.5+k3s1"
+  type        = string
+}
+
+variable "api_endpoint" {
+  description = "Control-plane API endpoint IP (kube-vip VIP)"
+  type        = string
+}
+
+variable "kube_vip_service_range" {
+  description = "Service LoadBalancer IP range managed by kube-vip"
+  type        = string
+}
+
+variable "domain_suffix" {
+  description = "Base DNS suffix used to derive ingress hostnames"
+  type        = string
+}
+
+variable "cert_manager_enable_smoke_test" {
+  description = "Create optional cert-manager smoke-test certificate"
+  type        = bool
+  default     = false
 }
 
 variable "vm_cores" {

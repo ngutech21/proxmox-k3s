@@ -1,16 +1,17 @@
-set dotenv-path := "04-core/.env"
-
 ansible_config := "ansible/ansible.cfg"
 bootstrap_dir := "03-bootstrap"
-cluster_vars := bootstrap_dir + "/vars/cluster.yml"
-secret_vars := bootstrap_dir + "/vars/secret.vault.yml"
-terraform_vars := "01-provision/terraform.tfvars"
-terraform_vars_example := "01-provision/terraform.tfvars.example"
 bootstrap_requirements := bootstrap_dir + "/requirements.yml"
 bootstrap_stage_playbook := bootstrap_dir + "/playbooks/bootstrap.yml"
 bootstrap_site_playbook := bootstrap_dir + "/playbooks/site-serial.yml"
-core_env := "04-core/.env"
-core_env_example := "04-core/.env.example"
+terraform_dir := "01-provision"
+terraform_var_file := "../cluster.tfvars"
+terraform_secret_var_file := "../cluster.secrets.tfvars"
+cluster_config := "cluster.tfvars"
+cluster_config_example := "cluster.tfvars.example"
+cluster_secrets := "cluster.secrets.tfvars"
+cluster_secrets_example := "cluster.secrets.tfvars.example"
+generated_bootstrap_vars := ".generated/bootstrap.vars.yml"
+generated_core_values := ".generated/core.values.yaml"
 
 # prints this help
 default:
@@ -25,11 +26,9 @@ check-tools:
       terraform
       ansible-playbook
       ansible-galaxy
-      ansible-vault
       kubectl
       helm
       helmfile
-      openssl
     )
 
     missing=()
@@ -74,80 +73,56 @@ init-config:
       echo "Created $target from $example"
     }
 
-    init_from_example "{{ terraform_vars }}" "{{ terraform_vars_example }}"
-    init_from_example "{{ cluster_vars }}" "{{ cluster_vars }}.example"
-    init_from_example "{{ secret_vars }}" "{{ secret_vars }}.example"
-    init_from_example "{{ core_env }}" "{{ core_env_example }}"
+    init_from_example "{{ cluster_config }}" "{{ cluster_config_example }}"
+    init_from_example "{{ cluster_secrets }}" "{{ cluster_secrets_example }}"
 
-# Generate a strong shared cluster token for 03-bootstrap/vars/secret.vault.yml.
-generate-cluster-token:
+# Generate all derived artifacts from Terraform inputs.
+[working-directory("{{ terraform_dir }}")]
+sync-config:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [[ ! -f "{{ secret_vars }}" ]]; then
-      echo "Missing {{ secret_vars }} (run 'just init-config' first)." >&2
+    if [[ ! -f "{{ terraform_var_file }}" ]]; then
+      echo "Missing {{ cluster_config }} (run 'just init-config' first)." >&2
       exit 1
     fi
 
-    if head -n 1 "{{ secret_vars }}" | grep -q '^\$ANSIBLE_VAULT;'; then
-      echo "{{ secret_vars }} is already encrypted. Decrypt it before changing the token." >&2
+    if [[ ! -f "{{ terraform_secret_var_file }}" ]]; then
+      echo "Missing {{ cluster_secrets }} (run 'just init-config' first)." >&2
       exit 1
     fi
 
-    token="$(openssl rand -hex 32)"
-
-    if rg -q '^token:' "{{ secret_vars }}"; then
-      perl -0pi -e 's/^token:\s*.*/token: '"$token"'/m' "{{ secret_vars }}"
-    else
-      printf '\ntoken: %s\n' "$token" >> "{{ secret_vars }}"
-    fi
-
-    echo "Generated cluster token in {{ secret_vars }}"
-
-# Encrypt 03-bootstrap/vars/secret.vault.yml with ansible-vault.
-encrypt-bootstrap-secrets:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    if [[ ! -f "{{ secret_vars }}" ]]; then
-      echo "Missing {{ secret_vars }} (run 'just init-config' first)." >&2
-      exit 1
-    fi
-
-    if head -n 1 "{{ secret_vars }}" | grep -q '^\$ANSIBLE_VAULT;'; then
-      echo "{{ secret_vars }} is already encrypted."
-      exit 0
-    fi
-
-    ansible-vault encrypt "{{ secret_vars }}"
+    terraform init
+    terraform apply \
+      -var-file="{{ terraform_var_file }}" \
+      -var-file="{{ terraform_secret_var_file }}" \
+      -target=local_file.ansible_inventory \
+      -target=local_file.bootstrap_vars \
+      -target=local_file.core_values
 
 # Provision or update the Proxmox VMs defined in Terraform.
-[working-directory("01-provision")]
+[working-directory("{{ terraform_dir }}")]
 provision-vms:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [[ ! -f "terraform.tfvars" ]]; then
-      echo "Missing 01-provision/terraform.tfvars (copy from 01-provision/terraform.tfvars.example and set values)." >&2
+    if [[ ! -f "{{ terraform_var_file }}" ]]; then
+      echo "Missing {{ cluster_config }} (run 'just init-config' first)." >&2
+      exit 1
+    fi
+
+    if [[ ! -f "{{ terraform_secret_var_file }}" ]]; then
+      echo "Missing {{ cluster_secrets }} (run 'just init-config' first)." >&2
       exit 1
     fi
 
     terraform init
-    terraform apply
+    terraform apply \
+      -var-file="{{ terraform_var_file }}" \
+      -var-file="{{ terraform_secret_var_file }}"
 
-# Refresh only the generated Ansible inventory from the current Terraform state.
-[working-directory("01-provision")]
-refresh-inventory:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    if [[ ! -f "terraform.tfvars" ]]; then
-      echo "Missing 01-provision/terraform.tfvars (copy from 01-provision/terraform.tfvars.example and set values)." >&2
-      exit 1
-    fi
-
-    terraform init
-    terraform apply -target=local_file.ansible_inventory
+# Refresh only the generated Ansible inventory from Terraform inputs.
+refresh-inventory: sync-config
 
 # Prepare all cluster nodes with base packages, Longhorn disk setup, and k3s prerequisites.
 configure-vms:
@@ -159,27 +134,22 @@ bootstrap-cluster:
     set -euo pipefail
     export ANSIBLE_CONFIG="{{ ansible_config }}"
 
-    if [[ ! -f "{{ cluster_vars }}" ]]; then
-      echo "Missing {{ cluster_vars }} (copy from {{ bootstrap_dir }}/vars/cluster.yml.example and set values)." >&2
+    just sync-config
+
+    if [[ ! -f "{{ generated_bootstrap_vars }}" ]]; then
+      echo "Missing {{ generated_bootstrap_vars }}. Run 'just sync-config' first." >&2
       exit 1
     fi
 
-    if [[ ! -f "{{ secret_vars }}" ]]; then
-      echo "Missing {{ secret_vars }} (copy from {{ bootstrap_dir }}/vars/secret.vault.yml.example and encrypt it)." >&2
+    token="$(sed -nE 's/^[[:space:]]*cluster_bootstrap_token[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' {{ cluster_secrets }} | head -n1)"
+    if [[ -z "$token" ]]; then
+      echo "cluster_bootstrap_token is missing in {{ cluster_secrets }}." >&2
       exit 1
     fi
-
-    read -r -s -p "Ansible Vault password: " VAULT_PASS
-    echo
-    VAULT_PASS_FILE="$(mktemp)"
-    trap 'rm -f "$VAULT_PASS_FILE"' EXIT
-    chmod 600 "$VAULT_PASS_FILE"
-    printf '%s' "$VAULT_PASS" > "$VAULT_PASS_FILE"
-    unset VAULT_PASS
 
     ansible-galaxy collection install -r "{{ bootstrap_requirements }}"
-    ansible-playbook "{{ bootstrap_stage_playbook }}" -e @"{{ cluster_vars }}" -e @"{{ secret_vars }}" --vault-password-file "$VAULT_PASS_FILE"
-    ansible-playbook "{{ bootstrap_site_playbook }}" -e @"{{ cluster_vars }}" -e @"{{ secret_vars }}" --vault-password-file "$VAULT_PASS_FILE"
+    ansible-playbook "{{ bootstrap_stage_playbook }}" -e @"{{ generated_bootstrap_vars }}" -e "token=$token"
+    ansible-playbook "{{ bootstrap_site_playbook }}" -e @"{{ generated_bootstrap_vars }}" -e "token=$token"
     just verify-bootstrap
 
 # Re-run the bootstrap validation checks against the current cluster state.
@@ -188,25 +158,18 @@ verify-bootstrap:
     set -euo pipefail
     export ANSIBLE_CONFIG="{{ ansible_config }}"
 
-    if [[ ! -f "{{ cluster_vars }}" ]]; then
-      echo "Missing {{ cluster_vars }} (copy from {{ bootstrap_dir }}/vars/cluster.yml.example and set values)." >&2
+    if [[ ! -f "{{ generated_bootstrap_vars }}" ]]; then
+      echo "Missing {{ generated_bootstrap_vars }}. Run 'just sync-config' first." >&2
       exit 1
     fi
 
-    if [[ ! -f "{{ secret_vars }}" ]]; then
-      echo "Missing {{ secret_vars }} (copy from {{ bootstrap_dir }}/vars/secret.vault.yml.example and encrypt it)." >&2
+    token="$(sed -nE 's/^[[:space:]]*cluster_bootstrap_token[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' {{ cluster_secrets }} | head -n1)"
+    if [[ -z "$token" ]]; then
+      echo "cluster_bootstrap_token is missing in {{ cluster_secrets }}." >&2
       exit 1
     fi
 
-    read -r -s -p "Ansible Vault password: " VAULT_PASS
-    echo
-    VAULT_PASS_FILE="$(mktemp)"
-    trap 'rm -f "$VAULT_PASS_FILE"' EXIT
-    chmod 600 "$VAULT_PASS_FILE"
-    printf '%s' "$VAULT_PASS" > "$VAULT_PASS_FILE"
-    unset VAULT_PASS
-
-    ansible-playbook "{{ bootstrap_site_playbook }}" -e @"{{ cluster_vars }}" -e @"{{ secret_vars }}" --vault-password-file "$VAULT_PASS_FILE"
+    ansible-playbook "{{ bootstrap_site_playbook }}" -e @"{{ generated_bootstrap_vars }}" -e "token=$token"
 
 # Install or update core cluster services managed by Helmfile and apply upgrade plans.
 [working-directory("04-core")]
@@ -214,13 +177,15 @@ install-core:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [[ ! -f ".env" ]]; then
-      echo "Missing 04-core/.env (copy from 04-core/.env.example and set values)." >&2
+    just sync-config
+
+    if [[ ! -f "../{{ generated_core_values }}" ]]; then
+      echo "Missing {{ generated_core_values }}. Run 'just sync-config' first." >&2
       exit 1
     fi
 
-    helmfile deps
-    helmfile apply
+    helmfile --state-values-file ../{{ generated_core_values }} deps
+    helmfile --state-values-file ../{{ generated_core_values }} apply
     kubectl apply -f manifests/system-upgrade/00-crd.yaml
     kubectl apply -f manifests/system-upgrade/10-server-plan.yaml
     kubectl apply -f manifests/system-upgrade/11-agent-plan.yaml
@@ -255,7 +220,11 @@ verify-core:
 # Bootstrap the cert-manager issuer chain after cert-manager itself is installed and ready.
 [working-directory("04-core")]
 bootstrap-cert-manager:
-    helmfile apply -l app=cert-manager-bootstrap
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    just sync-config
+    helmfile --state-values-file ../{{ generated_core_values }} apply -l app=cert-manager-bootstrap
 
 # Protect the Longhorn UI with Traefik BasicAuth using LONGHORN_USER and LONGHORN_PASS.
 [working-directory("04-core")]

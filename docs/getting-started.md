@@ -1,6 +1,6 @@
 # Getting Started
 
-This is the main setup flow for bringing up the homelab cluster.
+This is the main setup flow for bringing up the homelab cluster with a Terraform-first configuration model.
 
 ## 1. Prepare your environment
 
@@ -10,50 +10,34 @@ This is the main setup flow for bringing up the homelab cluster.
 
 The dev container provides the required tooling for this repo.
 
-## 2. Initialize local config files
+## 2. Initialize the two local config files
 
-Create the local configuration files:
+Create local config files:
 
 ```bash
 just init-config
 ```
 
-Then set the values for:
+Then edit only:
 
-- Proxmox access in `01-provision/terraform.tfvars`
-- cluster settings in `03-bootstrap/vars/cluster.yml`
-- domain and platform settings in `04-core/.env`
+- `cluster.tfvars` for non-secret cluster configuration
+- `cluster.secrets.tfvars` for local secrets
 
-For `01-provision/terraform.tfvars`, first create a Proxmox API token:
+`cluster.tfvars` includes:
 
-1. Log in to the Proxmox web UI.
-2. Open `Datacenter` -> `Permissions` -> `API Tokens`.
-3. Select the user that Terraform should use, or create a dedicated one first.
-4. Create a new API token.
-5. Copy these values into `01-provision/terraform.tfvars`:
-   - `proxmox_api_url`
-   - `proxmox_api_token_id`
-   - `proxmox_api_token_secret`
+- Proxmox URL and TLS mode
+- node layout and VM defaults
+- `k3s_version`
+- `api_endpoint`
+- `kube_vip_service_range`
+- `domain_suffix`
+- `cert_manager_enable_smoke_test`
 
-Example:
+`cluster.secrets.tfvars` includes:
 
-```hcl
-proxmox_api_url          = "https://pve.lab.local:8006/api2/json"
-proxmox_api_token_id     = "terraform@pve!k3s"
-proxmox_api_token_secret = "REPLACE_ME"
-```
-
-Generate the shared cluster token:
-
-```bash
-just generate-cluster-token
-```
-
-Encrypt the bootstrap secret file:
-
-```bash
-just encrypt-bootstrap-secrets
-```
+- `proxmox_api_token_id`
+- `proxmox_api_token_secret`
+- `cluster_bootstrap_token`
 
 ## 3. Check local tools
 
@@ -61,35 +45,27 @@ just encrypt-bootstrap-secrets
 just check-tools
 ```
 
-## 4. Provision the VMs
+## 4. Provision VMs
 
 ```bash
 just provision-vms
 ```
 
-This creates or updates the Proxmox VMs and generates the Ansible inventory.
+This creates or updates Proxmox VMs and also refreshes generated artifacts.
 
-If the VMs already exist and you only need to regenerate the Ansible inventory, run:
-
-```bash
-just refresh-inventory
-```
-
-## 5. Prepare the nodes
+## 5. Prepare nodes
 
 ```bash
 just configure-vms
 ```
 
-This installs the base OS packages and k3s prerequisites.
-
-## 6. Bootstrap the cluster
+## 6. Bootstrap k3s
 
 ```bash
 just bootstrap-cluster
 ```
 
-This installs the HA `k3s` cluster with `kube-vip`.
+This runs `just sync-config` first, then uses generated bootstrap vars and the token from `cluster.secrets.tfvars`.
 
 ## 7. Install core platform services
 
@@ -97,25 +73,22 @@ This installs the HA `k3s` cluster with `kube-vip`.
 just install-core
 ```
 
-This installs the main in-cluster services, including:
+This runs `just sync-config` first and then applies Helmfile using generated cluster values.
 
-- Traefik
-- Longhorn
-- CloudNativePG operator
-- cert-manager
-- system-upgrade-controller
+## Generated files
 
-## 8. Optional example workloads
+The following files are derived artifacts and should never be edited manually:
 
-After the platform is ready, you can deploy sample workloads from [`05-examples`](../05-examples).
+- `ansible/inventory/hosts.yml`
+- `.generated/bootstrap.vars.yml`
+- `.generated/core.values.yaml`
 
 ## Order Summary
 
-1. Run `just init-config`
-2. Run `just generate-cluster-token`
-3. Run `just encrypt-bootstrap-secrets`
-4. Run `just check-tools`
-5. Run `just provision-vms`
-6. Run `just configure-vms`
-7. Run `just bootstrap-cluster`
-8. Run `just install-core`
+1. `just init-config`
+2. fill `cluster.tfvars` and `cluster.secrets.tfvars`
+3. `just check-tools`
+4. `just provision-vms`
+5. `just configure-vms`
+6. `just bootstrap-cluster`
+7. `just install-core`

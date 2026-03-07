@@ -35,3 +35,6 @@
 **/.helmfile/
 **/helmfile.lock
 **/helmfile.yaml.lock
+
+# Generated artifacts
+**/.generated/

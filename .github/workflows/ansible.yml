@@ -1,0 +1,36 @@
+name: Ansible
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ansible.yml"
+      - "02-configure/**"
+      - "03-bootstrap/**"
+      - "ansible/**"
+  push:
+    paths:
+      - ".github/workflows/ansible.yml"
+      - "02-configure/**"
+      - "03-bootstrap/**"
+      - "ansible/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ansible-lint:
+    name: Ansible Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Run ansible-lint
+        uses: ansible/ansible-lint@v25.11.1
+        with:
+          args: >-
+            02-configure/playbooks
+            03-bootstrap/playbooks
+          requirements_file: 03-bootstrap/requirements.yml
+          setup_python: "true"

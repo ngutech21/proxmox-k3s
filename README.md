@@ -21,6 +21,15 @@ This keeps the homelab setup split into clear stages: provision the machines, co
 - `Helm`: package manager for Kubernetes applications
 - `Helmfile`: orchestration layer for repeatable Helm releases
 
+## Prerequisites
+
+- At least one `Proxmox` server
+- One or more cluster nodes; multiple nodes are supported but not required
+- `VS Code` is recommended for the dev container workflow
+- `Docker Desktop` or an equivalent container runtime for running the dev container
+
+Everything else needed for the workflow should be provided by the dev container.
+
 Core services in this repo include Traefik for ingress, Longhorn for distributed storage, the CloudNativePG operator for PostgreSQL, certificate management, upgrade management, and example workloads.
 
 ## Repo Layout

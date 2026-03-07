@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run ansible-lint
-        uses: ansible/ansible-lint@v25.11.1
+        uses: ansible/ansible-lint@v26.3.0
         with:
           args: >-
             02-configure/playbooks

@@ -49,3 +49,5 @@ Core services in this repo include Traefik for ingress, Longhorn for distributed
 This repo is best used from a VS Code dev container so tools like `terraform`, `ansible`, `helm`, `helmfile`, and `kubectl` stay consistent across machines.
 
 The main workflow is exposed through the [`justfile`](justfile).
+
+For the step-by-step setup order, start with [`docs/getting-started.md`](docs/getting-started.md).

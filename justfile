@@ -4,9 +4,13 @@ ansible_config := "ansible/ansible.cfg"
 bootstrap_dir := "03-bootstrap"
 cluster_vars := bootstrap_dir + "/vars/cluster.yml"
 secret_vars := bootstrap_dir + "/vars/secret.vault.yml"
+terraform_vars := "01-provision/terraform.tfvars"
+terraform_vars_example := "01-provision/terraform.tfvars.example"
 bootstrap_requirements := bootstrap_dir + "/requirements.yml"
 bootstrap_stage_playbook := bootstrap_dir + "/playbooks/bootstrap.yml"
 bootstrap_site_playbook := bootstrap_dir + "/playbooks/site-serial.yml"
+core_env := "04-core/.env"
+core_env_example := "04-core/.env.example"
 
 # prints this help
 default:
@@ -21,9 +25,11 @@ check-tools:
       terraform
       ansible-playbook
       ansible-galaxy
+      ansible-vault
       kubectl
       helm
       helmfile
+      openssl
     )
 
     missing=()
@@ -50,10 +56,98 @@ check-tools:
 
     echo "All required tools are installed."
 
+# Initialize missing local config files from the checked-in examples.
+init-config:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    init_from_example() {
+      local target="$1"
+      local example="$2"
+
+      if [[ -f "$target" ]]; then
+        echo "Keeping existing $target"
+        return
+      fi
+
+      cp "$example" "$target"
+      echo "Created $target from $example"
+    }
+
+    init_from_example "{{ terraform_vars }}" "{{ terraform_vars_example }}"
+    init_from_example "{{ cluster_vars }}" "{{ cluster_vars }}.example"
+    init_from_example "{{ secret_vars }}" "{{ secret_vars }}.example"
+    init_from_example "{{ core_env }}" "{{ core_env_example }}"
+
+# Generate a strong shared cluster token for 03-bootstrap/vars/secret.vault.yml.
+generate-cluster-token:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -f "{{ secret_vars }}" ]]; then
+      echo "Missing {{ secret_vars }} (run 'just init-config' first)." >&2
+      exit 1
+    fi
+
+    if head -n 1 "{{ secret_vars }}" | grep -q '^\$ANSIBLE_VAULT;'; then
+      echo "{{ secret_vars }} is already encrypted. Decrypt it before changing the token." >&2
+      exit 1
+    fi
+
+    token="$(openssl rand -hex 32)"
+
+    if rg -q '^token:' "{{ secret_vars }}"; then
+      perl -0pi -e 's/^token:\s*.*/token: '"$token"'/m' "{{ secret_vars }}"
+    else
+      printf '\ntoken: %s\n' "$token" >> "{{ secret_vars }}"
+    fi
+
+    echo "Generated cluster token in {{ secret_vars }}"
+
+# Encrypt 03-bootstrap/vars/secret.vault.yml with ansible-vault.
+encrypt-bootstrap-secrets:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -f "{{ secret_vars }}" ]]; then
+      echo "Missing {{ secret_vars }} (run 'just init-config' first)." >&2
+      exit 1
+    fi
+
+    if head -n 1 "{{ secret_vars }}" | grep -q '^\$ANSIBLE_VAULT;'; then
+      echo "{{ secret_vars }} is already encrypted."
+      exit 0
+    fi
+
+    ansible-vault encrypt "{{ secret_vars }}"
+
 # Provision or update the Proxmox VMs defined in Terraform.
 [working-directory("01-provision")]
 provision-vms:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -f "terraform.tfvars" ]]; then
+      echo "Missing 01-provision/terraform.tfvars (copy from 01-provision/terraform.tfvars.example and set values)." >&2
+      exit 1
+    fi
+
+    terraform init
     terraform apply
+
+# Refresh only the generated Ansible inventory from the current Terraform state.
+[working-directory("01-provision")]
+refresh-inventory:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -f "terraform.tfvars" ]]; then
+      echo "Missing 01-provision/terraform.tfvars (copy from 01-provision/terraform.tfvars.example and set values)." >&2
+      exit 1
+    fi
+
+    terraform init
+    terraform apply -target=local_file.ansible_inventory
 
 # Prepare all cluster nodes with base packages, Longhorn disk setup, and k3s prerequisites.
 configure-vms:
@@ -117,6 +211,14 @@ verify-bootstrap:
 # Install or update core cluster services managed by Helmfile and apply upgrade plans.
 [working-directory("04-core")]
 install-core:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -f ".env" ]]; then
+      echo "Missing 04-core/.env (copy from 04-core/.env.example and set values)." >&2
+      exit 1
+    fi
+
     helmfile deps
     helmfile apply
     kubectl apply -f manifests/system-upgrade/00-crd.yaml

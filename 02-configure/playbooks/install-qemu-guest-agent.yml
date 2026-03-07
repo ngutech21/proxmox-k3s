@@ -1,0 +1,33 @@
+---
+- name: Install qemu-guest-agent on all k3s nodes
+  hosts: k3s_cluster
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install qemu-guest-agent package
+      ansible.builtin.apt:
+        name: qemu-guest-agent
+        state: present
+        update_cache: true
+
+    - name: Ensure qemu guest agent service is enabled
+      ansible.builtin.service:
+        name: qemu-guest-agent
+        enabled: true
+        state: stopped
+
+    - name: Try to start qemu guest agent (non-fatal)
+      ansible.builtin.service:
+        name: qemu-guest-agent
+        state: started
+      register: qga_start
+      failed_when: false
+
+    - name: Report qemu guest agent start status
+      ansible.builtin.debug:
+        msg: >-
+          qemu-guest-agent start failed on {{ inventory_hostname }}.
+          This is expected if Proxmox VM option 'QEMU Agent' is disabled.
+          Enable it for the VM and rerun.
+      when: qga_start.failed | default(false)

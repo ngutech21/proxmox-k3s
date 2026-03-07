@@ -1,0 +1,365 @@
+---
+- name: Prepare Debian nodes for k3s
+  hosts: k3s_cluster
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_base_packages:
+      - qemu-guest-agent
+      - python3
+      - python3-apt
+      - locales
+      - sudo
+      - curl
+      - ca-certificates
+      - gnupg
+      - needrestart
+      - unattended-upgrades
+      - open-iscsi
+      - nfs-common
+      - parted
+      - e2fsprogs
+    longhorn_disk_by_path_dir: /dev/disk/by-path
+    longhorn_disk_by_path_pattern: "*-scsi-0:0:0:1"
+    longhorn_mount_path: /var/lib/longhorn
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name: "{{ k3s_base_packages }}"
+        state: present
+        update_cache: true
+      register: k3s_base_packages_install
+
+    - name: Gather needrestart restart hints # noqa: no-handler
+      ansible.builtin.command: needrestart -b -r l
+      register: needrestart_report
+      changed_when: false
+      failed_when: false
+      when: k3s_base_packages_install.changed
+
+    - name: Extract services suggested for restart # noqa: no-handler
+      ansible.builtin.set_fact:
+        needrestart_services: >-
+          {{
+            needrestart_report.stdout_lines
+            | default([])
+            | select('match', '^NEEDRESTART-SVC:\\s+')
+            | map('regex_replace', '^NEEDRESTART-SVC:\\s+', '')
+            | list
+            | unique
+          }}
+      when: k3s_base_packages_install.changed
+
+    - name: Restart services requested by needrestart
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: restarted
+      loop: "{{ needrestart_services | default([]) }}"
+      register: restarted_needrestart_services
+      when:
+        - k3s_base_packages_install.changed
+        - (needrestart_services | default([])) | length > 0
+
+    - name: Check whether Debian requires a node reboot
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+
+    - name: Capture reboot reason when available
+      ansible.builtin.slurp:
+        path: /var/run/reboot-required.pkgs
+      register: reboot_required_packages
+      when: reboot_required_file.stat.exists
+
+    - name: Build base prep summary facts
+      ansible.builtin.set_fact:
+        base_prep_restarted_services: >-
+          {{
+            restarted_needrestart_services.results
+            | default([])
+            | selectattr('changed', 'equalto', true)
+            | map(attribute='item')
+            | list
+          }}
+        base_prep_reboot_required: >-
+          {{ reboot_required_file.stat.exists | default(false) }}
+        base_prep_reboot_packages: >-
+          {{
+            (
+              reboot_required_packages.content | default('') | b64decode
+            ).splitlines()
+          }}
+
+    - name: Check available locales
+      ansible.builtin.command: locale -a
+      register: available_locales
+      changed_when: false
+
+    - name: Ensure en_US.UTF-8 locale is enabled
+      ansible.builtin.lineinfile:
+        path: /etc/locale.gen
+        regexp: "^#?\\s*en_US\\.UTF-8\\s+UTF-8$"
+        line: "en_US.UTF-8 UTF-8"
+        state: present
+      register: locale_gen_line
+
+    - name: Generate en_US.UTF-8 locale
+      ansible.builtin.command: locale-gen en_US.UTF-8
+      when: locale_gen_line.changed or ('en_US.utf8' not in available_locales.stdout_lines)
+      changed_when: true
+
+    - name: Set default LANG
+      ansible.builtin.lineinfile:
+        path: /etc/default/locale
+        regexp: "^LANG="
+        line: "LANG=en_US.UTF-8"
+        create: true
+        mode: "0644"
+
+    - name: Set default LC_ALL
+      ansible.builtin.lineinfile:
+        path: /etc/default/locale
+        regexp: "^LC_ALL="
+        line: "LC_ALL=en_US.UTF-8"
+        create: true
+        mode: "0644"
+
+    - name: Find Longhorn disk by fixed scsi1 slot in /dev/disk/by-path
+      ansible.builtin.find:
+        paths: "{{ longhorn_disk_by_path_dir }}"
+        patterns:
+          - "{{ longhorn_disk_by_path_pattern }}"
+        file_type: any
+      register: longhorn_disk_by_path_matches
+      when: "'agent' in group_names"
+
+    - name: Fail when Longhorn disk by-path is missing or ambiguous
+      ansible.builtin.fail:
+        msg: >-
+          Expected exactly one Longhorn disk by-path entry matching
+          {{ longhorn_disk_by_path_pattern }} on {{ inventory_hostname }},
+          found {{ longhorn_disk_by_path_matches.matched }}.
+          Ensure Terraform attached the Longhorn disk to interface scsi1 and rerun.
+      when:
+        - "'agent' in group_names"
+        - longhorn_disk_by_path_matches.matched != 1
+
+    - name: Set Longhorn disk by-path path
+      ansible.builtin.set_fact:
+        longhorn_disk_device_by_path: "{{ longhorn_disk_by_path_matches.files[0].path }}"
+      when: "'agent' in group_names"
+
+    - name: Resolve Longhorn disk kernel device path
+      ansible.builtin.command: "readlink -f {{ longhorn_disk_device_by_path }}"
+      register: longhorn_disk_device_resolved
+      changed_when: false
+      when: "'agent' in group_names"
+
+    - name: Detect root disk parent device
+      ansible.builtin.shell: "lsblk -no PKNAME $(findmnt -n -o SOURCE /)"
+      register: root_disk_parent
+      changed_when: false
+      when: "'agent' in group_names"
+
+    - name: Ensure root disk parent device was detected
+      ansible.builtin.assert:
+        that:
+          - root_disk_parent.stdout | trim | length > 0
+        fail_msg: "Could not detect root disk parent device on {{ inventory_hostname }}."
+      when: "'agent' in group_names"
+
+    - name: Fail when Longhorn disk resolves to root disk
+      ansible.builtin.fail:
+        msg: >-
+          Resolved Longhorn disk {{ longhorn_disk_device_resolved.stdout }}
+          is the root disk (/dev/{{ root_disk_parent.stdout }}).
+          Refusing to continue.
+      when:
+        - "'agent' in group_names"
+        - longhorn_disk_device_resolved.stdout == '/dev/' + (root_disk_parent.stdout | trim)
+
+    - name: Set Longhorn disk and partition paths
+      ansible.builtin.set_fact:
+        longhorn_disk_device: "{{ longhorn_disk_device_resolved.stdout }}"
+        longhorn_disk_partition: "{{ longhorn_disk_device_by_path }}-part1"
+      when: "'agent' in group_names"
+
+    - name: Create Longhorn partition when missing
+      ansible.builtin.command:
+        cmd: "parted -s {{ longhorn_disk_device }} -- mklabel gpt mkpart primary ext4 0% 100%"
+        creates: "{{ longhorn_disk_partition }}"
+      when: "'agent' in group_names"
+
+    - name: Settle udev after partitioning
+      ansible.builtin.command: udevadm settle
+      changed_when: false
+      when: "'agent' in group_names"
+
+    - name: Check filesystem type of Longhorn partition
+      ansible.builtin.command: "blkid -o value -s TYPE {{ longhorn_disk_partition }}"
+      register: longhorn_fs_type
+      failed_when: false
+      changed_when: false
+      when: "'agent' in group_names"
+
+    - name: Create ext4 filesystem on Longhorn partition when missing
+      ansible.builtin.command: "mkfs.ext4 -F {{ longhorn_disk_partition }}"
+      when:
+        - "'agent' in group_names"
+        - longhorn_fs_type.rc != 0 or longhorn_fs_type.stdout.strip() != "ext4"
+      changed_when: true
+
+    - name: Create Longhorn mount directory
+      ansible.builtin.file:
+        path: "{{ longhorn_mount_path }}"
+        state: directory
+        mode: "0755"
+      when: "'agent' in group_names"
+
+    - name: Read UUID of Longhorn partition
+      ansible.builtin.command: "blkid -o value -s UUID {{ longhorn_disk_partition }}"
+      register: longhorn_partition_uuid
+      changed_when: false
+      when: "'agent' in group_names"
+
+    - name: Persist Longhorn mount in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: "^\\S+\\s+{{ longhorn_mount_path }}\\s+ext4\\s+"
+        line: "UUID={{ longhorn_partition_uuid.stdout }} {{ longhorn_mount_path }} ext4 defaults,noatime 0 2"
+        state: present
+      when: "'agent' in group_names"
+
+    - name: Check whether Longhorn mount path is mounted
+      ansible.builtin.command: "findmnt -n {{ longhorn_mount_path }}"
+      register: longhorn_mount_state
+      failed_when: false
+      changed_when: false
+      when: "'agent' in group_names"
+
+    - name: Mount Longhorn disk # noqa: command-instead-of-module
+      ansible.builtin.command: "mount {{ longhorn_mount_path }}"
+      when:
+        - "'agent' in group_names"
+        - longhorn_mount_state.rc != 0
+      changed_when: true
+
+    - name: Ensure qemu guest agent is enabled
+      ansible.builtin.service:
+        name: qemu-guest-agent
+        enabled: true
+        state: stopped
+
+    - name: Try to start qemu guest agent (non-fatal)
+      ansible.builtin.service:
+        name: qemu-guest-agent
+        state: started
+      register: qga_start
+      failed_when: false
+
+    - name: Report qemu guest agent start status
+      ansible.builtin.debug:
+        msg: >-
+          qemu-guest-agent start failed on {{ inventory_hostname }}.
+          This is expected if Proxmox VM option 'QEMU Agent' is disabled.
+          Enable it for the VM and rerun this playbook.
+      when: qga_start.failed | default(false)
+
+    - name: Ensure iSCSI daemon is enabled
+      ansible.builtin.service:
+        name: iscsid
+        enabled: true
+        state: started
+
+    - name: Configure periodic APT update and unattended upgrades
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        mode: "0644"
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Download-Upgradeable-Packages "1";
+          APT::Periodic::AutocleanInterval "7";
+          APT::Periodic::Unattended-Upgrade "1";
+
+    - name: Configure unattended-upgrades origins
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/52unattended-upgrades-k3s
+        mode: "0644"
+        content: |
+          Unattended-Upgrade::Origins-Pattern {
+            "origin=${distro_id},codename=${distro_codename}-security,label=${distro_id}-Security";
+          };
+          Unattended-Upgrade::Automatic-Reboot "false";
+          Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+    - name: Ensure unattended-upgrades service is enabled
+      ansible.builtin.service:
+        name: unattended-upgrades
+        enabled: true
+        state: started
+
+    - name: Disable swap immediately
+      ansible.builtin.command: swapoff -a
+      when: ansible_facts["swaptotal_mb"] | int > 0
+      changed_when: true
+
+    - name: Disable swap persistently in /etc/fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^(?!#)(.*\sswap\s+.*)$'
+        replace: '# \1'
+
+    - name: Persist required kernel modules
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k3s.conf
+        mode: "0644"
+        content: |
+          overlay
+          br_netfilter
+          vxlan
+
+    - name: Load overlay module
+      ansible.builtin.command: modprobe overlay
+      changed_when: false
+
+    - name: Load br_netfilter module
+      ansible.builtin.command: modprobe br_netfilter
+      changed_when: false
+
+    - name: Load vxlan module
+      ansible.builtin.command: modprobe vxlan
+      changed_when: false
+
+    - name: Persist required sysctl values
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-k3s.conf
+        mode: "0644"
+        content: |
+          net.ipv4.ip_forward=1
+          net.bridge.bridge-nf-call-iptables=1
+          net.bridge.bridge-nf-call-ip6tables=1
+      notify: Apply sysctl settings
+
+    - name: Report base prep restart summary
+      ansible.builtin.debug:
+        msg:
+          - >-
+            needrestart restarted services:
+            {{ base_prep_restarted_services | default([]) | join(', ')
+            if (base_prep_restarted_services | default([]) | length > 0)
+            else 'none' }}
+          - >-
+            node reboot required:
+            {{ 'yes' if (base_prep_reboot_required | default(false)) else 'no' }}
+          - >-
+            reboot-required packages:
+            {{ base_prep_reboot_packages | default([]) | join(', ')
+            if (base_prep_reboot_packages | default([]) | length > 0)
+            else 'none' }}
+
+  handlers:
+    - name: Apply sysctl settings
+      ansible.builtin.command: sysctl --system
+      changed_when: true

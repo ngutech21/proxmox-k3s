@@ -1,0 +1,14 @@
+---
+- name: Reboot k3s nodes one by one
+  hosts: k3s_cluster
+  become: true
+  gather_facts: true
+  serial: 1
+
+  tasks:
+    - name: Reboot node and wait for it to come back
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        connect_timeout: 30
+        post_reboot_delay: 15
+        msg: "Reboot initiated by Ansible after node preparation"

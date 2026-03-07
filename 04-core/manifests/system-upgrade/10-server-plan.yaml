@@ -1,0 +1,17 @@
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-server-plan
+  namespace: cattle-system
+spec:
+  concurrency: 1
+  cordon: true
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+  serviceAccountName: system-upgrade-controller
+  upgrade:
+    image: rancher/k3s-upgrade
+  # Update this target version for the next cluster upgrade.
+  version: v1.34.4+k3s1

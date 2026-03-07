@@ -1,0 +1,10 @@
+certManager:
+  selfSignedIssuerName: selfsigned-bootstrap
+  caIssuerName: homelab-ca
+  rootCertificateName: homelab-root-ca
+  rootSecretName: homelab-root-ca-key-pair
+  smokeTest:
+    enabled: false
+    name: cert-manager-smoke-test
+    namespace: default
+    host: smoke.k3s.home

@@ -1,0 +1,81 @@
+repositories:
+- name: jetstack
+  url: https://charts.jetstack.io
+- name: traefik
+  url: https://traefik.github.io/charts
+- name: longhorn
+  url: https://charts.longhorn.io
+- name: rancher
+  url: https://charts.rancher.io
+- name: cnpg
+  url: https://cloudnative-pg.github.io/charts
+
+helmDefaults:
+  wait: true
+  timeout: 900
+  createNamespace: true
+  atomic: true
+
+environments:
+  default:
+    values:
+    - versions:
+        certManager: v1.19.2
+        traefik: 38.0.2
+        longhorn: v1.11.0
+        systemUpgradeController: 108.0.0
+        cloudNativePg: 0.26.1
+---
+releases:
+- name: cert-manager
+  namespace: cert-manager
+  chart: jetstack/cert-manager
+  version: "{{ .Values.versions.certManager }}"
+  values:
+  - values/cert-manager.yaml
+
+- name: cert-manager-bootstrap
+  namespace: cert-manager
+  chart: ./charts/cert-manager-bootstrap
+  needs:
+  - cert-manager/cert-manager
+  labels:
+    app: cert-manager-bootstrap
+  values:
+  - values/cert-manager-bootstrap.yaml.gotmpl
+
+- name: system-upgrade-controller
+  namespace: cattle-system
+  chart: rancher/system-upgrade-controller
+  version: "{{ .Values.versions.systemUpgradeController }}"
+  needs:
+  - cert-manager/cert-manager
+  - cert-manager/cert-manager-bootstrap
+  values:
+  - values/system-upgrade-controller.yaml
+
+- name: traefik
+  namespace: traefik
+  chart: traefik/traefik
+  version: "{{ .Values.versions.traefik }}"
+  needs:
+  - cattle-system/system-upgrade-controller
+  values:
+  - values/traefik.yaml
+
+- name: longhorn
+  namespace: longhorn-system
+  chart: longhorn/longhorn
+  version: "{{ .Values.versions.longhorn }}"
+  needs:
+  - traefik/traefik
+  values:
+  - values/longhorn.yaml.gotmpl
+
+- name: cloudnative-pg
+  namespace: cnpg-system
+  createNamespace: true
+  chart: cnpg/cloudnative-pg
+  version: "{{ .Values.versions.cloudNativePg }}"
+  values:
+  - values/cloudnative-pg-operator.yaml

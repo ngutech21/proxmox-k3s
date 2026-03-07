@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certManager.rootCertificateName }}
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: {{ .Values.certManager.rootCertificateName }}
+  secretName: {{ .Values.certManager.rootSecretName }}
+  privateKey:
+    algorithm: RSA
+    size: 4096
+  issuerRef:
+    name: {{ .Values.certManager.selfSignedIssuerName }}
+    kind: ClusterIssuer
+    group: cert-manager.io

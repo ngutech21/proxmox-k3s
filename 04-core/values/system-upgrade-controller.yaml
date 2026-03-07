@@ -1,0 +1,9 @@
+systemUpgradeController:
+  image:
+    repository: rancher/system-upgrade-controller
+    tag: v0.17.0
+
+kubectl:
+  image:
+    repository: rancher/kuberlr-kubectl
+    tag: v6.0.0

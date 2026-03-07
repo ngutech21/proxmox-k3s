@@ -1,0 +1,16 @@
+{{- if .Values.certManager.smokeTest.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certManager.smokeTest.name }}
+  namespace: {{ .Values.certManager.smokeTest.namespace }}
+spec:
+  secretName: {{ .Values.certManager.smokeTest.name }}-tls
+  commonName: {{ .Values.certManager.smokeTest.host }}
+  dnsNames:
+    - {{ .Values.certManager.smokeTest.host }}
+  issuerRef:
+    name: {{ .Values.certManager.caIssuerName }}
+    kind: ClusterIssuer
+    group: cert-manager.io
+{{- end }}

@@ -1,0 +1,21 @@
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+config:
+  clusterWide: true
+  maxConcurrentReconciles: 10
+
+monitoring:
+  podMonitorEnabled: false
+
+tolerations:
+- key: node-role.kubernetes.io/control-plane
+  operator: Exists
+  effect: NoSchedule

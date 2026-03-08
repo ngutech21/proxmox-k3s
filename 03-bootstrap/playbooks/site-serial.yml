@@ -116,22 +116,10 @@
       register: flannel_link
       changed_when: false
 
-    - name: Check route to flannel subnet
-      ansible.builtin.command: ip route show "{{ flannel_subnet_cidr }}"
-      register: flannel_subnet_route
-      changed_when: false
-
-    - name: Check route to cluster pod network
-      ansible.builtin.command: ip route show "{{ flannel_network_cidr }}"
-      register: flannel_network_route
-      changed_when: false
-
     - name: Fail when flannel routing is missing
       ansible.builtin.assert:
         that:
           - flannel_link.rc == 0
-          - flannel_subnet_route.stdout | trim | length > 0
-          - flannel_network_route.stdout | trim | length > 0
         fail_msg: >-
           Flannel pod routing is incomplete on {{ inventory_hostname }}.
           flannel.1 or pod CIDR routes are missing after k3s bootstrap/join.

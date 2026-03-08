@@ -3,6 +3,7 @@ bootstrap_dir := "03-bootstrap"
 bootstrap_requirements := bootstrap_dir + "/requirements.yml"
 bootstrap_stage_playbook := bootstrap_dir + "/playbooks/bootstrap.yml"
 bootstrap_site_playbook := bootstrap_dir + "/playbooks/site-serial.yml"
+fetch_kubeconfig_playbook := bootstrap_dir + "/playbooks/fetch-kubeconfig.yml"
 terraform_dir := "01-provision"
 terraform_var_file := "../cluster.tfvars"
 terraform_secret_var_file := "../cluster.secrets.tfvars"
@@ -12,6 +13,8 @@ cluster_secrets := "cluster.secrets.tfvars"
 cluster_secrets_example := "cluster.secrets.tfvars.example"
 generated_bootstrap_vars := ".generated/bootstrap.vars.yml"
 generated_core_values := ".generated/core.values.yaml"
+generated_kubeconfig_raw := ".generated/proxmox-k3s.kubeconfig.raw"
+generated_kubeconfig := ".generated/proxmox-k3s.kubeconfig"
 
 # prints this help
 default:
@@ -24,6 +27,8 @@ check-tools:
 
     required_commands=(
       terraform
+      python3
+      ansible
       ansible-playbook
       ansible-galaxy
       kubectl
@@ -38,6 +43,7 @@ check-tools:
       fi
     done
 
+    
     if ! helm plugin list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -qx diff; then
       missing+=("helm-diff plugin")
     fi
@@ -77,7 +83,7 @@ init-config:
     init_from_example "{{ cluster_secrets }}" "{{ cluster_secrets_example }}"
 
 # Generate all derived artifacts from Terraform inputs.
-[working-directory("{{ terraform_dir }}")]
+[working-directory("01-provision")]
 sync-config:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -103,7 +109,7 @@ sync-config:
       -target=local_file.core_values
 
 # Provision or update the Proxmox VMs defined in Terraform.
-[working-directory("{{ terraform_dir }}")]
+[working-directory("01-provision")]
 provision-vms: check-tools
     #!/usr/bin/env bash
     set -euo pipefail
@@ -175,9 +181,41 @@ verify-bootstrap:
 
     ansible-playbook "{{ bootstrap_site_playbook }}" -e @"{{ generated_bootstrap_vars }}" -e "token=$token"
 
+# Fetch kubeconfig from the first control-plane node and store it as a separate local file.
+fetch-kubeconfig:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export ANSIBLE_CONFIG="{{ ansible_config }}"
+
+    if [[ ! -f "{{ generated_bootstrap_vars }}" ]]; then
+      echo "Missing {{ generated_bootstrap_vars }}. Run 'just provision-vms' or 'just sync-config' first." >&2
+      exit 1
+    fi
+
+    mkdir -p .generated
+    raw_kubeconfig_path="$PWD/{{ generated_kubeconfig_raw }}"
+    rendered_kubeconfig_path="$PWD/{{ generated_kubeconfig }}"
+
+    api_endpoint="$(sed -nE 's/^api_endpoint:[[:space:]]*"([^"]+)".*/\1/p' "{{ generated_bootstrap_vars }}" | head -n1)"
+    if [[ -z "$api_endpoint" ]]; then
+      echo "api_endpoint is missing in {{ generated_bootstrap_vars }}." >&2
+      exit 1
+    fi
+
+    ansible-playbook "{{ fetch_kubeconfig_playbook }}" -e "local_kubeconfig_raw=$raw_kubeconfig_path"
+
+    if [[ ! -f "$raw_kubeconfig_path" ]]; then
+      echo "Missing {{ generated_kubeconfig_raw }} after fetch." >&2
+      exit 1
+    fi
+
+    API_ENDPOINT="$api_endpoint" RAW_KUBECONFIG_PATH="$raw_kubeconfig_path" RENDERED_KUBECONFIG_PATH="$rendered_kubeconfig_path" python3 -c 'from pathlib import Path; import os; raw = Path(os.environ["RAW_KUBECONFIG_PATH"]).read_text(); replacement = "server: https://" + os.environ["API_ENDPOINT"] + ":6443"; updated = raw.replace("server: https://127.0.0.1:6443", replacement); Path(os.environ["RENDERED_KUBECONFIG_PATH"]).write_text(updated)'
+
+    echo "Saved kubeconfig to {{ generated_kubeconfig }}"
+
 # Install or update core cluster services managed by Helmfile and apply upgrade plans.
 [working-directory("04-core")]
-install-core:
+install-core: check-tools
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -221,7 +259,7 @@ verify-core:
 
 # Bootstrap the cert-manager issuer chain after cert-manager itself is installed and ready.
 [working-directory("04-core")]
-bootstrap-cert-manager:
+bootstrap-cert-manager: check-tools
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ ! -f "../{{ generated_core_values }}" ]]; then

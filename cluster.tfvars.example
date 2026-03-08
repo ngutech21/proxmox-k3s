@@ -7,7 +7,8 @@ cluster_nodes = [
   { name = "k3s-cp-1", role = "control_plane", proxmox_node = "pve-1", template_id = 201, vm_id = 301, ip = "10.30.0.11" },
   { name = "k3s-cp-2", role = "control_plane", proxmox_node = "pve-2", template_id = 202, vm_id = 302, ip = "10.30.0.12" },
   { name = "k3s-cp-3", role = "control_plane", proxmox_node = "pve-1", template_id = 201, vm_id = 303, ip = "10.30.0.13" },
-  { name = "k3s-wk-1", role = "worker", proxmox_node = "pve-2", template_id = 202, vm_id = 311, ip = "10.30.0.21" },
+  { name = "k3s-wk-1", role = "worker", proxmox_node = "pve-2", template_id = 202, vm_id = 304, ip = "10.30.0.21" },
+  { name = "k3s-wk-2", role = "worker", proxmox_node = "pve-1", template_id = 201, vm_id = 305, ip = "10.30.0.22" }
 ]
 
 # VM defaults (optional per-node overrides in cluster_nodes)

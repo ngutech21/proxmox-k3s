@@ -57,4 +57,11 @@ The user-edited local inputs are intentionally reduced to two gitignored files i
 
 Terraform uses those inputs to generate the downstream inventory and stage values consumed by Ansible and Helmfile.
 
+The standard setup flow is:
+
+1. `just init-config`
+2. `just provision-vms`
+3. `just bootstrap-cluster`
+4. `just install-core`
+
 For the step-by-step setup order, start with [`docs/getting-started.md`](docs/getting-started.md).

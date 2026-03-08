@@ -104,7 +104,7 @@ sync-config:
 
 # Provision or update the Proxmox VMs defined in Terraform.
 [working-directory("{{ terraform_dir }}")]
-provision-vms:
+provision-vms: check-tools
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -124,9 +124,6 @@ provision-vms:
     terraform apply \
       -var-file="{{ terraform_var_file }}" \
       -var-file="{{ terraform_secret_var_file }}"
-
-# Refresh only the generated Ansible inventory from Terraform inputs.
-refresh-inventory: sync-config
 
 # Prepare all cluster nodes with base packages, Longhorn disk setup, and k3s prerequisites.
 configure-vms:

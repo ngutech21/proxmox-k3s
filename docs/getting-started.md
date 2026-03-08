@@ -10,11 +10,13 @@ This is the main setup flow for bringing up the homelab cluster with a Terraform
 
 The dev container provides the required tooling for this repo.
 
-## 2. Check local tools
+## 2. Optional: check local tools
 
 ```bash
 just check-tools
 ```
+
+`just provision-vms` runs this automatically, but the standalone check is still useful if you want to validate the environment first.
 
 
 ## 3. Initialize the two local config files
@@ -53,13 +55,15 @@ Then edit only:
 just provision-vms
 ```
 
-This creates or updates Proxmox VMs and also refreshes generated artifacts.
+This creates or updates the Proxmox VMs and refreshes the generated inventory and stage values.
 
 ## 5. Prepare nodes
 
 ```bash
 just configure-vms
 ```
+
+Run this directly after `just provision-vms`. It installs the required OS packages and prepares the nodes for k3s.
 
 ## 6. Bootstrap k3s
 
@@ -97,8 +101,7 @@ The following files are derived artifacts and should never be edited manually:
 
 1. `just init-config`
 2. fill `cluster.tfvars` and `cluster.secrets.tfvars`
-3. `just check-tools`
-4. `just provision-vms`
-5. `just configure-vms`
-6. `just bootstrap-cluster`
-7. `just install-core`
+3. `just provision-vms`
+4. `just configure-vms`
+5. `just bootstrap-cluster`
+6. `just install-core`

@@ -12,13 +12,13 @@
 		},
 		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
 			"version": "latest",
-			"helm": "latest",
+			"helm": "4.1.1",
 			"minikube": "none"
 		},
 		"./local-features/copy-kube-config": {},
 		"./local-features/helm-diff": {},
 		"ghcr.io/devcontainers/features/terraform:1": {},
-		"ghcr.io/schlich/devcontainer-features/helmfile:1": {},
+		"ghcr.io/devcontainers-extra/features/helmfile:latest": {},
 		"ghcr.io/hspaans/devcontainer-features/ansible-lint:2": {},
 		"ghcr.io/devcontainers-extra/features/ansible:2": {},
 		"ghcr.io/guiyomh/features/just": {}

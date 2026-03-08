@@ -61,7 +61,15 @@ The standard setup flow is:
 
 1. `just init-config`
 2. `just provision-vms`
-3. `just bootstrap-cluster`
-4. `just install-core`
+3. `just configure-vms`
+4. `just bootstrap-cluster`
+5. `just install-core`
+
+To use `kubectl` from your workstation or dev container without overwriting an existing config, fetch a separate kubeconfig after bootstrap:
+
+```bash
+just fetch-kubeconfig
+KUBECONFIG=.generated/proxmox-k3s.kubeconfig kubectl get nodes
+```
 
 For the step-by-step setup order, start with [`docs/getting-started.md`](docs/getting-started.md).

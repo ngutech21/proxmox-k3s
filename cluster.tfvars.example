@@ -28,7 +28,7 @@ vm_gateway     = "10.30.0.1"
 vm_dns_servers = ["1.1.1.1", "8.8.8.8"]
 
 # Cloud-init user
-vm_username       = "ubuntu"
+vm_username       = "debian"
 vm_ssh_public_key = "ssh-ed25519 AAAA... replace-with-your-public-key"
 
 # Cluster bootstrap and core metadata

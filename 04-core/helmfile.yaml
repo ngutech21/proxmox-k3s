@@ -37,6 +37,7 @@ releases:
 - name: cert-manager-bootstrap
   namespace: cert-manager
   chart: ./charts/cert-manager-bootstrap
+  disableValidationOnInstall: true
   needs:
   - cert-manager/cert-manager
   labels:

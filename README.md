@@ -50,4 +50,11 @@ This repo is best used from a VS Code dev container so tools like `terraform`, `
 
 The main workflow is exposed through the [`justfile`](justfile).
 
+The user-edited local inputs are intentionally reduced to two gitignored files in the repository root:
+
+- `cluster.tfvars` for non-secret cluster configuration
+- `cluster.secrets.tfvars` for local secrets
+
+Terraform uses those inputs to generate the downstream inventory and stage values consumed by Ansible and Helmfile.
+
 For the step-by-step setup order, start with [`docs/getting-started.md`](docs/getting-started.md).

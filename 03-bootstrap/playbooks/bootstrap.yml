@@ -17,7 +17,7 @@
           - kube_vip_service_range is defined
           - kube_vip_service_range | length > 0
         fail_msg: >-
-          Missing required bootstrap vars. Run just sync-config and pass token from cluster.secrets.tfvars.
+          Missing required bootstrap vars. Generate them with Terraform first, then rerun bootstrap.
 
     - name: Set kube-vip network interface from default route interface
       ansible.builtin.set_fact:

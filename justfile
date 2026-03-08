@@ -138,10 +138,8 @@ bootstrap-cluster:
     set -euo pipefail
     export ANSIBLE_CONFIG="{{ ansible_config }}"
 
-    just sync-config
-
     if [[ ! -f "{{ generated_bootstrap_vars }}" ]]; then
-      echo "Missing {{ generated_bootstrap_vars }}. Run 'just sync-config' first." >&2
+      echo "Missing {{ generated_bootstrap_vars }}. Run 'just provision-vms' or 'just sync-config' first." >&2
       exit 1
     fi
 
@@ -163,7 +161,12 @@ verify-bootstrap:
     export ANSIBLE_CONFIG="{{ ansible_config }}"
 
     if [[ ! -f "{{ generated_bootstrap_vars }}" ]]; then
-      echo "Missing {{ generated_bootstrap_vars }}. Run 'just sync-config' first." >&2
+      echo "Missing {{ generated_bootstrap_vars }}. Run 'just provision-vms' or 'just sync-config' first." >&2
+      exit 1
+    fi
+
+    if [[ ! -f "{{ cluster_secrets }}" ]]; then
+      echo "Missing {{ cluster_secrets }} (run 'just init-config' first)." >&2
       exit 1
     fi
 
@@ -181,10 +184,8 @@ install-core:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    just sync-config
-
     if [[ ! -f "../{{ generated_core_values }}" ]]; then
-      echo "Missing {{ generated_core_values }}. Run 'just sync-config' first." >&2
+      echo "Missing {{ generated_core_values }}. Run 'just provision-vms' or 'just sync-config' first." >&2
       exit 1
     fi
 
@@ -226,8 +227,10 @@ verify-core:
 bootstrap-cert-manager:
     #!/usr/bin/env bash
     set -euo pipefail
-
-    just sync-config
+    if [[ ! -f "../{{ generated_core_values }}" ]]; then
+      echo "Missing {{ generated_core_values }}. Run 'just provision-vms' or 'just sync-config' first." >&2
+      exit 1
+    fi
     helmfile --state-values-file ../{{ generated_core_values }} apply -l app=cert-manager-bootstrap
 
 # Protect the Longhorn UI with Traefik BasicAuth using LONGHORN_USER and LONGHORN_PASS.

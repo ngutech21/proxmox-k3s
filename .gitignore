@@ -3,6 +3,8 @@
 **/.env
 
 # Terraform
+cluster.tfvars
+cluster.secrets.tfvars
 **/.terraform/
 **/*.tfstate
 **/*.tfstate.*

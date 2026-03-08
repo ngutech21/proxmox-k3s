@@ -31,7 +31,7 @@ vm_username       = "ubuntu"
 vm_ssh_public_key = "ssh-ed25519 AAAA... replace-with-your-public-key"
 
 # Cluster bootstrap and core metadata
-k3s_version                    = "v1.33.5+k3s1"
+k3s_version                    = "v1.34.4+k3s1"
 api_endpoint                   = "10.30.0.10"
 kube_vip_service_range         = "10.30.0.251-10.30.0.255"
 domain_suffix                  = "k3s.home"

@@ -10,7 +10,14 @@ This is the main setup flow for bringing up the homelab cluster with a Terraform
 
 The dev container provides the required tooling for this repo.
 
-## 2. Initialize the two local config files
+## 2. Check local tools
+
+```bash
+just check-tools
+```
+
+
+## 3. Initialize the two local config files
 
 Create local config files:
 
@@ -39,11 +46,6 @@ Then edit only:
 - `proxmox_api_token_secret`
 - `cluster_bootstrap_token`
 
-## 3. Check local tools
-
-```bash
-just check-tools
-```
 
 ## 4. Provision VMs
 
@@ -65,7 +67,7 @@ just configure-vms
 just bootstrap-cluster
 ```
 
-This runs `just sync-config` first, then uses generated bootstrap vars and the token from `cluster.secrets.tfvars`.
+This uses the generated bootstrap vars from the latest Terraform apply and the token from `cluster.secrets.tfvars`.
 
 ## 7. Install core platform services
 
@@ -73,7 +75,15 @@ This runs `just sync-config` first, then uses generated bootstrap vars and the t
 just install-core
 ```
 
-This runs `just sync-config` first and then applies Helmfile using generated cluster values.
+This applies Helmfile using generated cluster values from the latest Terraform apply.
+
+## Optional: refresh generated files only
+
+```bash
+just sync-config
+```
+
+Use this when you changed `cluster.tfvars` or `cluster.secrets.tfvars` and only want to refresh generated artifacts without reprovisioning VMs.
 
 ## Generated files
 

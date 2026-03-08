@@ -23,8 +23,10 @@ Helmfile-managed platform applications for the k3s cluster.
 Core values are generated from Terraform inputs in `cluster.tfvars` by running:
 
 ```bash
-just sync-config
+just provision-vms
 ```
+
+`just sync-config` remains available if you only want to refresh generated files without reprovisioning VMs.
 
 Helmfile receives cluster values with `--state-values-file ../.generated/core.values.yaml`.
 
@@ -36,7 +38,7 @@ From the repository root:
 just install-core
 ```
 
-This task runs `just sync-config` first, installs Helm-managed components, and applies the k3s upgrade plans.
+This task uses the generated values from the latest Terraform apply, installs Helm-managed components, and applies the k3s upgrade plans.
 
 To re-run checks without reinstalling:
 

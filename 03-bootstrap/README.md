@@ -16,8 +16,10 @@ Bootstrap k3s with `k3s-ansible` and pre-stage kube-vip manifests.
 All bootstrap variables are generated from Terraform inputs in `cluster.tfvars` by running:
 
 ```bash
-just sync-config
+just provision-vms
 ```
+
+`just sync-config` remains available if you only want to refresh generated files without reprovisioning VMs.
 
 The bootstrap token is read from `cluster.secrets.tfvars` and passed as an extra var by `just bootstrap-cluster`.
 
@@ -31,7 +33,7 @@ just bootstrap-cluster
 
 What this does:
 
-1. Runs `just sync-config`.
+1. Uses generated bootstrap vars from the latest Terraform apply.
 2. Installs the `k3s.orchestration` collection.
 3. Pre-stages kube-vip manifests on all server nodes.
 4. Runs `k3s.orchestration.site` to install HA k3s.

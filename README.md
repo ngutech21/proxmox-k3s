@@ -94,6 +94,33 @@ kubectl --context proxmox-k3s get nodes
 
 For most users, this is the main reason to use the repo: you describe the cluster once, run one command, and get a Proxmox-backed HA `k3s` environment with ingress, storage, certificates, and upgrade plumbing already in place.
 
+## 📝 Declarative Cluster Config
+
+The cluster is described declaratively in `cluster.tfvars`.
+
+```hcl
+cluster_nodes = [
+  { name = "k3s-cp-1", role = "control_plane", proxmox_node = "pve-1", template_id = 201, vm_id = 301, ip = "10.30.0.11" },
+  { name = "k3s-cp-2", role = "control_plane", proxmox_node = "pve-2", template_id = 202, vm_id = 302, ip = "10.30.0.12" },
+  { name = "k3s-cp-3", role = "control_plane", proxmox_node = "pve-1", template_id = 201, vm_id = 303, ip = "10.30.0.13" },
+  { name = "k3s-wk-1", role = "worker", proxmox_node = "pve-2", template_id = 202, vm_id = 304, ip = "10.30.0.21" },
+  { name = "k3s-wk-2", role = "worker", proxmox_node = "pve-1", template_id = 201, vm_id = 305, ip = "10.30.0.22" }
+]
+
+api_endpoint           = "10.30.0.10"
+kube_vip_service_range = "10.30.0.251-10.30.0.255"
+domain_suffix          = "k3s.home"
+```
+
+From that description, the repo derives:
+
+- the Proxmox VMs to create
+- the generated Ansible inventory
+- the generated bootstrap values for `k3s-ansible`
+- the generated cluster values consumed by Helmfile
+
+That is the core model of this repo: describe the cluster once, derive everything else from it.
+
 ## 🏗️ Cluster Layout
 
 The cluster shape is defined in `cluster.tfvars` through `cluster_nodes`.

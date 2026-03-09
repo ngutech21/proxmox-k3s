@@ -8,16 +8,29 @@ Opinionated infrastructure repo for bringing up a highly available `k3s` cluster
 
 After you initialize the two local config files, `just up` provisions the VMs, prepares the operating system, bootstraps HA `k3s`, and installs the core platform services.
 
+## 💡 What You Get
+
+If you want a reproducible HA `k3s` setup on Proxmox without spending time on glue code, this repo gives you a working path out of the box.
+
+Instead of manually combining VM provisioning, cloud-init, node preparation, `k3s` bootstrap, ingress, storage, certificates, and upgrades, you get one opinionated workflow with sensible defaults and a small configuration surface.
+
+The main value is not just that it installs Kubernetes. The value is that it removes the repetitive work around Kubernetes on Proxmox:
+
+- no hand-maintained inventory or stage-specific config files
+- no manual install order across Terraform, Ansible, and Helm
+- no separate setup for ingress, storage, cert-manager, and upgrade management
+- no need to re-figure out a HA layout every time you build a new lab
+
 ## ✨ Benefits
 
-- Fast path to a working HA `k3s` cluster on Proxmox without stitching together Terraform, Ansible, and Helmfile by hand
-- Only two local input files to maintain: `cluster.tfvars` and `cluster.secrets.tfvars`
-- Generated inventory and stage values instead of manually maintained per-stage config files
-- Opinionated defaults for kube-vip, Traefik, cert-manager, Longhorn, and upgrade management
-- Configurable number of control-plane and worker nodes through `cluster_nodes`
-- Automatic base OS preparation on every VM, including unattended APT security updates
-- Automatic Longhorn data disk partitioning, formatting, mounting, and persistence on worker nodes
-- Repeatable lifecycle through `just` tasks instead of ad-hoc shell commands
+- Bring up a complete HA `k3s` platform on Proxmox with `just up`
+- Keep local configuration limited to `cluster.tfvars` and `cluster.secrets.tfvars`
+- Scale the cluster shape up or down by changing `cluster_nodes` for control-plane and worker VMs
+- Reuse generated inventory and derived values instead of editing multiple stage configs by hand
+- Get opinionated defaults for kube-vip, Traefik, cert-manager, Longhorn, and upgrade management
+- Prepare every node automatically, including unattended APT security updates
+- Set up Longhorn disks automatically on worker nodes, including partitioning, formatting, mounting, and persistence
+- Re-run the full lifecycle through stable `just` commands instead of ad-hoc shell history
 
 ## 🚀 What gets installed
 
@@ -45,6 +58,8 @@ After you initialize the two local config files, `just up` provisions the VMs, p
 Everything else is expected to come from the dev container.
 
 ## ⚡ Quick Start
+
+This is the shortest path to a running cluster:
 
 ```bash
 just init-config
@@ -76,6 +91,8 @@ You can then access the cluster with:
 ```bash
 kubectl --context proxmox-k3s get nodes
 ```
+
+For most users, this is the main reason to use the repo: you describe the cluster once, run one command, and get a Proxmox-backed HA `k3s` environment with ingress, storage, certificates, and upgrade plumbing already in place.
 
 ## 🏗️ Cluster Layout
 

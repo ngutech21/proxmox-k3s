@@ -191,3 +191,10 @@
           - qm
           - template
           - "{{ template_config.vm_id | string }}"
+
+    - name: Show created template summary
+      ansible.builtin.debug:
+        msg: >-
+          Created template {{ template_config.template_name }} (VM {{ template_config.vm_id }})
+          on {{ inventory_hostname }} using disk storage {{ template_config.disk_storage }}
+          and cloud-init storage {{ template_config.cloudinit_storage }}.

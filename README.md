@@ -99,6 +99,12 @@ Then run:
 just create-templates
 ```
 
+If the Proxmox hosts require a `become` password, run:
+
+```bash
+just create-templates true
+```
+
 The example template vars default to the official Debian Trixie generic image and one template per Proxmox node. Set the VM IDs, storage names, bridge, and SSH access for your environment before running the playbook. The inventory host names and the keys under `proxmox_templates` must match the actual Proxmox node names.
 
 Then run the standard end-to-end workflow:
@@ -136,6 +142,12 @@ Then run:
 
 ```bash
 just create-templates
+```
+
+If Ansible should prompt for the `become` password, use:
+
+```bash
+just create-templates true
 ```
 
 This task:
@@ -233,6 +245,7 @@ just sync-config
 ## 🔧 Main Commands
 
 - `just create-templates`: optionally create Debian Trixie cloud-init templates on the configured Proxmox hosts
+  Use `just create-templates true` when Ansible should prompt for the `become` password.
 - `just provision-vms`: create or update the Proxmox VMs and refresh generated artifacts
 - `just configure-vms`: prepare the nodes with base OS configuration and Longhorn disk setup
 - `just bootstrap-cluster`: install HA `k3s` with kube-vip and merge kubeconfig locally

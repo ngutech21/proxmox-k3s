@@ -45,7 +45,7 @@ check-tools:
       fi
     done
 
-    
+
     if ! helm plugin list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -qx diff; then
       missing+=("helm-diff plugin")
     fi
@@ -85,7 +85,7 @@ init-config:
     init_from_example "{{ cluster_secrets }}" "{{ cluster_secrets_example }}"
 
 # Create Debian Trixie cloud-init templates on the configured Proxmox hosts.
-create-templates: check-tools
+create-templates ask_become='false': check-tools
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -99,7 +99,15 @@ create-templates: check-tools
       exit 1
     fi
 
-    ANSIBLE_CONFIG={{ ansible_config }} ansible-playbook -i "{{ template_inventory }}" "{{ template_playbook }}" -e @"{{ template_vars }}"
+    extra_args=()
+    if [[ "{{ ask_become }}" == "true" ]]; then
+      extra_args+=("-K")
+    fi
+
+    ANSIBLE_CONFIG={{ ansible_config }} ansible-playbook "${extra_args[@]}" -i "{{ template_inventory }}" "{{ template_playbook }}" -e @"{{ template_vars }}"
+
+create-templates-with-password:
+    just create-templates true
 
 # Run the standard end-to-end cluster setup workflow.
 up:
@@ -338,7 +346,6 @@ upgrade-cluster:
 # Reboot all cluster nodes one by one and wait for each node to return.
 restart-nodes:
     ANSIBLE_CONFIG={{ ansible_config }} ansible-playbook 02-configure/playbooks/restart-nodes.yml
-
 
 [working-directory("01-provision")]
 destroy-cluster:

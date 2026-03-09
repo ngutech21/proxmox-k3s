@@ -63,6 +63,100 @@ check-tools:
 
     echo "All required tools are installed."
 
+# Run local preflight checks for config files, placeholders, and generated artifacts.
+doctor: check-tools
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    failures=0
+    warnings=0
+
+    pass() {
+      printf 'OK   %s\n' "$1"
+    }
+
+    warn() {
+      printf 'WARN %s\n' "$1"
+      warnings=$((warnings + 1))
+    }
+
+    fail() {
+      printf 'FAIL %s\n' "$1" >&2
+      failures=$((failures + 1))
+    }
+
+    if [[ -f "{{ cluster_config }}" ]]; then
+      pass "{{ cluster_config }} exists"
+
+      if grep -Fq 'https://proxmox.local:8006/api2/json' "{{ cluster_config }}"; then
+        warn "{{ cluster_config }} still contains the example Proxmox API URL"
+      fi
+
+      if grep -Fq 'replace-with-your-public-key' "{{ cluster_config }}"; then
+        fail "{{ cluster_config }} still contains the example SSH public key"
+      fi
+
+      control_plane_count="$(grep -E -o 'role *= *"control_plane"' "{{ cluster_config }}" | wc -l | tr -d ' ')"
+      worker_count="$(grep -E -o 'role *= *"worker"' "{{ cluster_config }}" | wc -l | tr -d ' ')"
+
+      if [[ "${control_plane_count:-0}" -gt 0 ]]; then
+        pass "cluster config defines ${control_plane_count} control-plane node(s)"
+      else
+        fail "cluster config does not define any control-plane nodes"
+      fi
+
+      if [[ "${worker_count:-0}" -gt 0 ]]; then
+        pass "cluster config defines ${worker_count} worker node(s)"
+      else
+        warn "cluster config does not define any worker nodes"
+      fi
+    else
+      fail "missing {{ cluster_config }} (run 'just init-config' first)"
+    fi
+
+    if [[ -f "{{ cluster_secrets }}" ]]; then
+      pass "{{ cluster_secrets }} exists"
+
+      if grep -Fq 'REPLACE_ME' "{{ cluster_secrets }}"; then
+        fail "{{ cluster_secrets }} still contains example secret placeholders"
+      fi
+
+      if grep -Fq 'REPLACE_WITH_STRONG_CLUSTER_TOKEN' "{{ cluster_secrets }}"; then
+        fail "{{ cluster_secrets }} still contains the example bootstrap token"
+      fi
+    else
+      fail "missing {{ cluster_secrets }} (run 'just init-config' first)"
+    fi
+
+    if [[ -f "{{ template_inventory }}" && -f "{{ template_vars }}" ]]; then
+      pass "optional template bootstrap config is present"
+    elif [[ -f "{{ template_inventory }}" || -f "{{ template_vars }}" ]]; then
+      warn "template bootstrap config is only partially configured"
+    else
+      warn "template bootstrap config is not configured; this is fine if Proxmox templates already exist"
+    fi
+
+    for generated_file in ansible/inventory/hosts.yml "{{ generated_bootstrap_vars }}" "{{ generated_core_values }}"; do
+      if [[ -f "$generated_file" ]]; then
+        pass "$generated_file is present"
+      else
+        warn "$generated_file is missing; run 'just provision-vms' to generate it"
+      fi
+    done
+
+    if kubectl config current-context >/dev/null 2>&1; then
+      current_context="$(kubectl config current-context)"
+      pass "kubectl current context: ${current_context}"
+    else
+      warn "kubectl has no current context yet"
+    fi
+
+    printf '\nSummary: %d failure(s), %d warning(s)\n' "$failures" "$warnings"
+
+    if [[ "$failures" -gt 0 ]]; then
+      exit 1
+    fi
+
 # Initialize missing local config files from the checked-in examples.
 init-config:
     #!/usr/bin/env bash

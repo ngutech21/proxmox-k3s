@@ -81,6 +81,7 @@ This is the shortest path to a running cluster:
 
 ```bash
 just init-config
+just doctor
 ```
 
 Edit the two generated local files:
@@ -244,6 +245,7 @@ just sync-config
 
 ## 🔧 Main Commands
 
+- `just doctor`: run local preflight checks for tools, config files, placeholders, and generated artifacts
 - `just create-templates`: optionally create Debian Trixie cloud-init templates on the configured Proxmox hosts
   Use `just create-templates true` when Ansible should prompt for the `become` password.
 - `just provision-vms`: create or update the Proxmox VMs and refresh generated artifacts

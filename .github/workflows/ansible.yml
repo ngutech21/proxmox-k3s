@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - ".github/workflows/ansible.yml"
+      - "00-create-template/**"
       - "02-configure/**"
       - "03-bootstrap/**"
       - "ansible/**"
   push:
     paths:
       - ".github/workflows/ansible.yml"
+      - "00-create-template/**"
       - "02-configure/**"
       - "03-bootstrap/**"
       - "ansible/**"
@@ -30,7 +32,83 @@ jobs:
         uses: ansible/ansible-lint@v26.3.0
         with:
           args: >-
+            00-create-template/playbooks
             02-configure/playbooks
             03-bootstrap/playbooks
           requirements_file: 03-bootstrap/requirements.yml
           setup_python: "true"
+
+  ansible-syntax:
+    name: Ansible Syntax Check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: python -m pip install --upgrade pip ansible-core
+
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install -r 03-bootstrap/requirements.yml
+
+      - name: Create temporary syntax-check inventory
+        run: |
+          mkdir -p "$RUNNER_TEMP/ansible-ci"
+          cat >"$RUNNER_TEMP/ansible-ci/inventory.yml" <<'EOF'
+          all:
+            children:
+              proxmox:
+                hosts:
+                  pve-1:
+                    ansible_host: 127.0.0.1
+                    ansible_connection: local
+                    ansible_user: root
+              k3s_cluster:
+                children:
+                  server:
+                    hosts:
+                      k3s-cp-1:
+                        ansible_host: 127.0.0.1
+                        ansible_connection: local
+                        ansible_user: root
+                  agent:
+                    hosts:
+                      k3s-wk-1:
+                        ansible_host: 127.0.0.1
+                        ansible_connection: local
+                        ansible_user: root
+          EOF
+
+      - name: Run syntax checks
+        env:
+          ANSIBLE_CONFIG: ansible/ansible.cfg
+        run: |
+          ansible-playbook --syntax-check \
+            -i "$RUNNER_TEMP/ansible-ci/inventory.yml" \
+            00-create-template/playbooks/create-template.yml \
+            -e @00-create-template/vars/templates.yml.example
+
+          ansible-playbook --syntax-check \
+            -i "$RUNNER_TEMP/ansible-ci/inventory.yml" \
+            02-configure/playbooks/base-prep.yml
+
+          ansible-playbook --syntax-check \
+            -i "$RUNNER_TEMP/ansible-ci/inventory.yml" \
+            03-bootstrap/playbooks/bootstrap.yml \
+            -e token=temp-bootstrap-token-0123456789abcdef \
+            -e k3s_version=v1.34.4+k3s1 \
+            -e api_endpoint=10.30.0.10 \
+            -e kube_vip_service_range=10.30.0.251-10.30.0.255
+
+          ansible-playbook --syntax-check \
+            -i "$RUNNER_TEMP/ansible-ci/inventory.yml" \
+            03-bootstrap/playbooks/site-serial.yml \
+            -e token=temp-bootstrap-token-0123456789abcdef \
+            -e k3s_version=v1.34.4+k3s1 \
+            -e api_endpoint=10.30.0.10 \
+            -e kube_vip_service_range=10.30.0.251-10.30.0.255

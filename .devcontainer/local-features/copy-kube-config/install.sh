@@ -3,8 +3,8 @@ set -e
 
 USERNAME="${USERNAME:-"${_REMOTE_USER}"}"
 
-# Script copies localhost's ~/.kube/config file into the container and swaps out 
-# localhost for host.docker.internal on bash/zsh start to keep them in sync.
+# Script copies the host ~/.kube/config file into the container on bash/zsh start
+# so local cluster contexts are available inside the dev container as well.
 cp copy-kube-config.sh /usr/local/share/
 
 chown ${USERNAME}:root /usr/local/share/copy-kube-config.sh

@@ -1,13 +1,11 @@
 #!/bin/bash -i
 
-# Copies localhost's ~/.kube/config file into the container and swap out localhost
-# for host.docker.internal whenever a new shell starts to keep them in sync.
+# Copies the host ~/.kube/config file into the container whenever a new shell
+# starts so local cluster contexts are available inside the dev container.
 if [ "$SYNC_LOCALHOST_KUBECONFIG" = "true" ] && [ -d "/usr/local/share/kube-localhost" ]; then
     mkdir -p $HOME/.kube
     sudo cp -r /usr/local/share/kube-localhost/* $HOME/.kube
     sudo chown -R $(id -u) $HOME/.kube
-    sed -i -e "s/localhost/host.docker.internal/g" $HOME/.kube/config
-    sed -i -e "s/127.0.0.1/host.docker.internal/g" $HOME/.kube/config
 
     # If .minikube was mounted, set up client cert/key
     if [ -d "/usr/local/share/minikube-localhost" ]; then

@@ -74,6 +74,14 @@ just bootstrap-cluster
 
 This uses the generated bootstrap vars from the latest Terraform apply and the token from `cluster.secrets.tfvars`.
 
+After bootstrap, `k3s-ansible` copies the kubeconfig to your workstation and merges it into `~/.kube/config` with the `proxmox-k3s` context.
+
+You can use it directly:
+
+```bash
+kubectl --context proxmox-k3s get nodes
+```
+
 ## 7. Install core platform services
 
 ```bash
@@ -81,22 +89,6 @@ just install-core
 ```
 
 This applies Helmfile using generated cluster values from the latest Terraform apply.
-
-## 8. Fetch a separate kubeconfig for local kubectl access
-
-```bash
-just fetch-kubeconfig
-KUBECONFIG=.generated/proxmox-k3s.kubeconfig kubectl get nodes
-```
-
-This fetches `/etc/rancher/k3s/k3s.yaml` from the first control-plane node, rewrites the server endpoint to your configured API VIP, and stores it locally in `.generated/proxmox-k3s.kubeconfig`.
-
-If you want to use it for a shell session, export it once:
-
-```bash
-export KUBECONFIG="$PWD/.generated/proxmox-k3s.kubeconfig"
-kubectl get nodes
-```
 
 ## Optional: refresh generated files only
 
@@ -113,7 +105,6 @@ The following files are derived artifacts and should never be edited manually:
 - `ansible/inventory/hosts.yml`
 - `.generated/bootstrap.vars.yml`
 - `.generated/core.values.yaml`
-- `.generated/proxmox-k3s.kubeconfig`
 
 ## Order Summary
 
@@ -123,4 +114,3 @@ The following files are derived artifacts and should never be edited manually:
 4. `just configure-vms`
 5. `just bootstrap-cluster`
 6. `just install-core`
-7. `just fetch-kubeconfig`

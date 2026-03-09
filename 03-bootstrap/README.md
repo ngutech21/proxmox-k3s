@@ -37,7 +37,8 @@ What this does:
 2. Installs the `k3s.orchestration` collection.
 3. Pre-stages kube-vip manifests on all server nodes.
 4. Runs `k3s.orchestration.site` to install HA k3s.
-5. Installs without bundled Traefik/servicelb.
+5. Copies the kubeconfig to the control machine and merges it into `~/.kube/config` with the `proxmox-k3s` context.
+6. Installs without bundled Traefik/servicelb.
 
 After this step, the cluster is up and reachable via the kube-vip API endpoint.
 Ingress is intentionally installed later in `04-core`.

@@ -65,11 +65,6 @@ The standard setup flow is:
 4. `just bootstrap-cluster`
 5. `just install-core`
 
-To use `kubectl` from your workstation or dev container without overwriting an existing config, fetch a separate kubeconfig after bootstrap:
-
-```bash
-just fetch-kubeconfig
-KUBECONFIG=.generated/proxmox-k3s.kubeconfig kubectl get nodes
-```
+After `just bootstrap-cluster`, `k3s-ansible` copies the cluster kubeconfig to your workstation and merges it into `~/.kube/config` with the `proxmox-k3s` context. The dev container reuses that host kubeconfig.
 
 For the step-by-step setup order, start with [`docs/getting-started.md`](docs/getting-started.md).

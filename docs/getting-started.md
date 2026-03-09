@@ -74,7 +74,7 @@ just bootstrap-cluster
 
 This uses the generated bootstrap vars from the latest Terraform apply and the token from `cluster.secrets.tfvars`.
 
-After bootstrap, `k3s-ansible` copies the kubeconfig to your workstation and merges it into `~/.kube/config` with the `proxmox-k3s` context.
+After bootstrap, `k3s-ansible` copies the kubeconfig to your workstation and merges it into `~/.kube/config` with the `proxmox-k3s` context. In the dev container, the host `~/.kube` is mounted directly, so this updates the same kubeconfig file.
 
 You can use it directly:
 

@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/kubernetes-helm
 {
-	"name": "Kubernetes - Local Configuration",
+	"name": "Proxmox-K3s Dev Container",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/base:bullseye",
 
@@ -15,7 +15,6 @@
 			"helm": "4.1.1",
 			"minikube": "none"
 		},
-		"./local-features/copy-kube-config": {},
 		"./local-features/helm-diff": {},
 		"ghcr.io/devcontainers/features/terraform:1": {},
 		"ghcr.io/devcontainers-extra/features/helmfile:latest": {},
@@ -28,21 +27,11 @@
 		"HELM_PLUGINS": "/usr/local/share/helm/plugins"
 	},
 
-	"remoteEnv": {
-		"SYNC_LOCALHOST_KUBECONFIG": "true"
-	},
-
 	"initializeCommand": "cd .devcontainer && bash ensure-mount-sources",
 	"mounts": [
 		{
 			"source": "${env:HOME}${env:USERPROFILE}/.kube",
-			"target": "/usr/local/share/kube-localhost",
-			"type": "bind"
-		},
-		// Optional mount to also sync certs in your .minikube folder
-		{
-			"source": "${env:HOME}${env:USERPROFILE}/.minikube",
-			"target": "/usr/local/share/minikube-localhost",
+			"target": "/home/vscode/.kube",
 			"type": "bind"
 		}
 	],
@@ -66,8 +55,8 @@
 				"ms-vscode-remote.remote-containers"
 			]
 		}
-	}
+	},
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+	"remoteUser": "vscode"
 }

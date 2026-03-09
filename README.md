@@ -65,6 +65,6 @@ The standard setup flow is:
 4. `just bootstrap-cluster`
 5. `just install-core`
 
-After `just bootstrap-cluster`, `k3s-ansible` copies the cluster kubeconfig to your workstation and merges it into `~/.kube/config` with the `proxmox-k3s` context. The dev container reuses that host kubeconfig.
+After `just bootstrap-cluster`, `k3s-ansible` copies the cluster kubeconfig to your workstation and merges it into `~/.kube/config` with the `proxmox-k3s` context. In the dev container, the host `~/.kube` is mounted directly, so bootstrap updates the same kubeconfig file there as well.
 
 For the step-by-step setup order, start with [`docs/getting-started.md`](docs/getting-started.md).

@@ -1,0 +1,19 @@
+template_defaults:
+  image_url: "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
+  image_filename: "debian-13-generic-amd64.qcow2"
+  image_cache_dir: "/var/lib/vz/template/cache"
+  template_name: "debian-13-trixie-cloudinit"
+  memory_mb: 2048
+  cpu_cores: 2
+  bridge: "vmbr0"
+  disk_storage: "local-zfs"
+  cloudinit_storage: "local-zfs"
+  cloud_init_user: "debian"
+
+proxmox_templates:
+  # Keys must match the Proxmox host names from inventory/hosts.yml.
+  pve-1:
+    vm_id: 201
+
+  pve-2:
+    vm_id: 202

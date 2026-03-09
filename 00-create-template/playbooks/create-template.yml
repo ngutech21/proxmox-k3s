@@ -1,0 +1,193 @@
+---
+- name: Create Debian Trixie cloud-init templates on Proxmox hosts
+  hosts: proxmox
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../vars/templates.yml
+
+  vars:
+    template_config: "{{ template_defaults | combine(proxmox_templates[inventory_hostname] | default({}), recursive=True) }}"
+    image_path: "{{ template_config.image_cache_dir }}/{{ template_config.image_filename }}"
+
+  pre_tasks:
+    - name: Ensure template definition exists for this Proxmox host
+      ansible.builtin.assert:
+        that:
+          - proxmox_templates[inventory_hostname] is defined
+        fail_msg: >-
+          Missing template definition for {{ inventory_hostname }} in 00-create-template/vars/templates.yml.
+
+    - name: Ensure required template settings are present
+      ansible.builtin.assert:
+        that:
+          - template_config.vm_id is defined
+          - template_config.template_name is defined
+          - template_config.template_name | length > 0
+          - template_config.image_url is defined
+          - template_config.image_url | length > 0
+          - template_config.image_filename is defined
+          - template_config.image_filename | length > 0
+          - template_config.image_cache_dir is defined
+          - template_config.image_cache_dir | length > 0
+          - template_config.disk_storage is defined
+          - template_config.disk_storage | length > 0
+          - template_config.cloudinit_storage is defined
+          - template_config.cloudinit_storage | length > 0
+          - template_config.bridge is defined
+          - template_config.bridge | length > 0
+        fail_msg: >-
+          Template settings for {{ inventory_hostname }} are incomplete in 00-create-template/vars/templates.yml.
+
+    - name: Ensure image cache directory exists
+      ansible.builtin.file:
+        path: "{{ template_config.image_cache_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Get existing VMs on this Proxmox node
+      ansible.builtin.command:
+        argv:
+          - pvesh
+          - get
+          - "/nodes/{{ inventory_hostname }}/qemu"
+          - --output-format
+          - json
+      register: proxmox_vms_raw
+      changed_when: false
+
+    - name: Parse existing VMs
+      ansible.builtin.set_fact:
+        proxmox_vms: "{{ proxmox_vms_raw.stdout | from_json }}"
+
+    - name: Abort when template VM ID already exists
+      ansible.builtin.assert:
+        that:
+          - (proxmox_vms | selectattr('vmid', 'equalto', template_config.vm_id) | list | length) == 0
+        fail_msg: >-
+          VM ID {{ template_config.vm_id }} already exists on {{ inventory_hostname }}.
+          Refusing to overwrite an existing VM or template.
+
+    - name: Abort when template name already exists
+      ansible.builtin.assert:
+        that:
+          - (proxmox_vms | selectattr('name', 'equalto', template_config.template_name) | list | length) == 0
+        fail_msg: >-
+          Template name {{ template_config.template_name }} already exists on {{ inventory_hostname }}.
+          Refusing to overwrite an existing VM or template.
+
+  tasks:
+    - name: Download Debian Trixie cloud image
+      ansible.builtin.get_url:
+        url: "{{ template_config.image_url }}"
+        dest: "{{ image_path }}"
+        mode: "0644"
+
+    - name: Create template VM shell
+      ansible.builtin.command:
+        argv:
+          - qm
+          - create
+          - "{{ template_config.vm_id | string }}"
+          - --name
+          - "{{ template_config.template_name }}"
+          - --ostype
+          - l26
+          - --memory
+          - "{{ template_config.memory_mb | string }}"
+          - --cores
+          - "{{ template_config.cpu_cores | string }}"
+          - --net0
+          - "virtio,bridge={{ template_config.bridge }}"
+          - --serial0
+          - socket
+          - --vga
+          - serial0
+          - --agent
+          - enabled=1
+
+    - name: Import downloaded disk into Proxmox storage
+      ansible.builtin.command:
+        argv:
+          - qm
+          - importdisk
+          - "{{ template_config.vm_id | string }}"
+          - "{{ image_path }}"
+          - "{{ template_config.disk_storage }}"
+
+    - name: Read VM configuration after disk import
+      ansible.builtin.command:
+        argv:
+          - qm
+          - config
+          - "{{ template_config.vm_id | string }}"
+      register: qm_config_after_import
+      changed_when: false
+
+    - name: Extract imported disk volume ID
+      ansible.builtin.set_fact:
+        imported_disk_volid: >-
+          {{
+            qm_config_after_import.stdout_lines
+            | select('match', '^unused[0-9]+:')
+            | map('split', ': ', 1)
+            | map('last')
+            | map('regex_replace', ',.*$', '')
+            | list
+            | first
+            | default('')
+          }}
+
+    - name: Fail when imported disk cannot be identified
+      ansible.builtin.assert:
+        that:
+          - imported_disk_volid | length > 0
+        fail_msg: >-
+          Unable to determine the imported disk volume for VM {{ template_config.vm_id }} on {{ inventory_hostname }}.
+
+    - name: Attach imported disk as scsi0
+      ansible.builtin.command:
+        argv:
+          - qm
+          - set
+          - "{{ template_config.vm_id | string }}"
+          - --scsihw
+          - virtio-scsi-pci
+          - --scsi0
+          - "{{ imported_disk_volid }}"
+
+    - name: Attach cloud-init drive
+      ansible.builtin.command:
+        argv:
+          - qm
+          - set
+          - "{{ template_config.vm_id | string }}"
+          - --ide2
+          - "{{ template_config.cloudinit_storage }}:cloudinit"
+
+    - name: Configure boot disk
+      ansible.builtin.command:
+        argv:
+          - qm
+          - set
+          - "{{ template_config.vm_id | string }}"
+          - --boot
+          - c
+          - --bootdisk
+          - scsi0
+
+    - name: Set default cloud-init user
+      ansible.builtin.command:
+        argv:
+          - qm
+          - set
+          - "{{ template_config.vm_id | string }}"
+          - --ciuser
+          - "{{ template_config.cloud_init_user }}"
+
+    - name: Convert VM to template
+      ansible.builtin.command:
+        argv:
+          - qm
+          - template
+          - "{{ template_config.vm_id | string }}"

@@ -1,4 +1,10 @@
 ansible_config := "ansible/ansible.cfg"
+template_dir := "00-create-template"
+template_inventory := template_dir + "/inventory/hosts.yml"
+template_inventory_example := template_dir + "/inventory/hosts.yml.example"
+template_vars := template_dir + "/vars/templates.yml"
+template_vars_example := template_dir + "/vars/templates.yml.example"
+template_playbook := template_dir + "/playbooks/create-template.yml"
 bootstrap_dir := "03-bootstrap"
 bootstrap_requirements := bootstrap_dir + "/requirements.yml"
 bootstrap_stage_playbook := bootstrap_dir + "/playbooks/bootstrap.yml"
@@ -77,6 +83,23 @@ init-config:
 
     init_from_example "{{ cluster_config }}" "{{ cluster_config_example }}"
     init_from_example "{{ cluster_secrets }}" "{{ cluster_secrets_example }}"
+
+# Create Debian Trixie cloud-init templates on the configured Proxmox hosts.
+create-templates: check-tools
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -f "{{ template_inventory }}" ]]; then
+      echo "Missing {{ template_inventory }} (copy from {{ template_inventory_example }} and set values)." >&2
+      exit 1
+    fi
+
+    if [[ ! -f "{{ template_vars }}" ]]; then
+      echo "Missing {{ template_vars }} (copy from {{ template_vars_example }} and set values)." >&2
+      exit 1
+    fi
+
+    ANSIBLE_CONFIG={{ ansible_config }} ansible-playbook -i "{{ template_inventory }}" "{{ template_playbook }}" -e @"{{ template_vars }}"
 
 # Run the standard end-to-end cluster setup workflow.
 up:

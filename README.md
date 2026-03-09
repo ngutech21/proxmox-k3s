@@ -32,6 +32,24 @@ The main value is not just that it installs Kubernetes. The value is that it rem
 - Set up Longhorn disks automatically on worker nodes, including partitioning, formatting, mounting, and persistence
 - Re-run the full lifecycle through stable `just` commands instead of ad-hoc shell history
 
+## 🧱 Optional Template Bootstrap
+
+If you do not already have a cloud-init capable Debian template on each Proxmox node, you can create one with the optional `00-create-template` stage.
+
+This stage uses Ansible against the Proxmox hosts directly and creates a Debian Trixie template that:
+
+- downloads the official Debian Trixie generic image
+- imports it with `qm importdisk`
+- enables Cloud-Init
+- enables the Proxmox QEMU guest agent flag
+- marks the VM as a reusable Proxmox template
+
+The stage is intentionally fail-fast:
+
+- if the configured VM ID already exists on a node, it aborts
+- if the configured template name already exists on a node, it aborts
+- if the image is already cached on the Proxmox host, it is reused
+
 ## 🚀 What gets installed
 
 - Proxmox VMs for control-plane and worker nodes
@@ -50,7 +68,7 @@ The main value is not just that it installs Kubernetes. The value is that it rem
 
 - one or more Proxmox nodes with API access
 - a Proxmox API token with permission to clone and create VMs
-- a cloud-init capable VM template on every Proxmox node you reference in `cluster_nodes`
+- either an existing cloud-init capable VM template on every Proxmox node you reference in `cluster_nodes`, or the optional `just create-templates` step
 - matching `template_id` values in `cluster.tfvars` for those templates on the target nodes
 - `VS Code` with the dev container is recommended so the toolchain stays consistent
 - `Docker Desktop` or an equivalent container runtime for the dev container workflow
@@ -69,6 +87,19 @@ Edit the two generated local files:
 
 - `cluster.tfvars` for non-secret cluster configuration
 - `cluster.secrets.tfvars` for Proxmox credentials and the shared bootstrap token
+
+Optional: if you want this repo to create the Proxmox VM templates for you first, copy and edit:
+
+- `00-create-template/inventory/hosts.yml.example` -> `00-create-template/inventory/hosts.yml`
+- `00-create-template/vars/templates.yml.example` -> `00-create-template/vars/templates.yml`
+
+Then run:
+
+```bash
+just create-templates
+```
+
+The example template vars default to the official Debian Trixie generic image and one template per Proxmox node. Set the VM IDs, storage names, bridge, and SSH access for your environment before running the playbook. The inventory host names and the keys under `proxmox_templates` must match the actual Proxmox node names.
 
 Then run the standard end-to-end workflow:
 
@@ -91,6 +122,32 @@ You can then access the cluster with:
 ```bash
 kubectl --context proxmox-k3s get nodes
 ```
+
+## 🏭 `just create-templates`
+
+Use this optional task when you want the repo to create Debian Trixie cloud-init templates on your Proxmox nodes before provisioning the cluster VMs.
+
+Before running it, create and edit:
+
+- `00-create-template/inventory/hosts.yml`
+- `00-create-template/vars/templates.yml`
+
+Then run:
+
+```bash
+just create-templates
+```
+
+This task:
+
+- downloads the official Debian Trixie genericcloud image on each Proxmox host
+- downloads the official Debian Trixie generic image on each Proxmox host
+- creates the VM shell with `qm create`
+- imports the disk with `qm importdisk`
+- enables Cloud-Init and the Proxmox guest agent flag
+- converts the VM to a reusable template
+
+It is intentionally fail-fast and aborts if the configured VM ID or template name already exists on a target Proxmox node.
 
 For most users, this is the main reason to use the repo: you describe the cluster once, run one command, and get a Proxmox-backed HA `k3s` environment with ingress, storage, certificates, and upgrade plumbing already in place.
 
@@ -173,6 +230,7 @@ just sync-config
 
 ## 🔧 Main Commands
 
+- `just create-templates`: optionally create Debian Trixie cloud-init templates on the configured Proxmox hosts
 - `just provision-vms`: create or update the Proxmox VMs and refresh generated artifacts
 - `just configure-vms`: prepare the nodes with base OS configuration and Longhorn disk setup
 - `just bootstrap-cluster`: install HA `k3s` with kube-vip and merge kubeconfig locally
@@ -184,6 +242,7 @@ just sync-config
 
 ## 📁 Repo Layout
 
+- [`00-create-template`](00-create-template): optional Ansible-based Proxmox template creation
 - [`01-provision`](01-provision): Terraform for Proxmox VMs and generated downstream config
 - [`02-configure`](02-configure): Ansible base host preparation
 - [`03-bootstrap`](03-bootstrap): HA `k3s` bootstrap with `k3s-ansible`

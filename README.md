@@ -60,10 +60,10 @@ Terraform uses those inputs to generate the downstream inventory and stage value
 The standard setup flow is:
 
 1. `just init-config`
-2. `just provision-vms`
-3. `just configure-vms`
-4. `just bootstrap-cluster`
-5. `just install-core`
+2. fill `cluster.tfvars` and `cluster.secrets.tfvars`
+3. `just up`
+
+`just up` runs the full standard workflow in order: provision VMs, prepare the nodes, bootstrap k3s, and install the core platform services.
 
 After `just bootstrap-cluster`, `k3s-ansible` copies the cluster kubeconfig to your workstation and merges it into `~/.kube/config` with the `proxmox-k3s` context. In the dev container, the host `~/.kube` is mounted directly, so bootstrap updates the same kubeconfig file there as well.
 

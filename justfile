@@ -78,6 +78,14 @@ init-config:
     init_from_example "{{ cluster_config }}" "{{ cluster_config_example }}"
     init_from_example "{{ cluster_secrets }}" "{{ cluster_secrets_example }}"
 
+# Run the standard end-to-end cluster setup workflow.
+up:
+    just init-config
+    just provision-vms
+    just configure-vms
+    just bootstrap-cluster
+    just install-core
+
 # Generate all derived artifacts from Terraform inputs.
 [working-directory("01-provision")]
 sync-config:

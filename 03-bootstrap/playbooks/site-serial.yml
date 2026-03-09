@@ -134,24 +134,45 @@
 
   tasks:
     - name: Wait until all expected nodes are Ready
-      ansible.builtin.command: kubectl get nodes --no-headers
+      ansible.builtin.command: kubectl get nodes -o json
       register: kubectl_nodes
       changed_when: false
       retries: 24
       delay: 10
       until:
         - kubectl_nodes.rc == 0
+        - expected_cluster_nodes | difference(current_node_names) | length == 0
+        - current_node_names | difference(expected_cluster_nodes) | length == 0
         - expected_cluster_nodes | difference(ready_node_names) | length == 0
-        - ready_node_names | difference(expected_cluster_nodes) | length == 0
       vars:
-        ready_node_names: >-
+        current_node_names: >-
           {{
-            kubectl_nodes.stdout_lines
-            | select('match', '^[^[:space:]]+[[:space:]]+Ready([[:space:]]|$)')
-            | map('regex_replace', '^([^[:space:]]+).*$', '\\1')
+            (
+              kubectl_nodes.stdout
+              | from_json
+            ).items
+            | map(attribute='metadata.name')
             | list
             | sort
           }}
+        ready_node_names: >-
+          {{
+            ready_nodes | sort
+          }}
+        ready_nodes: >-
+          {%- set names = [] -%}
+          {%- for node in ((kubectl_nodes.stdout | from_json).items | default([])) -%}
+          {%-   if (
+                  node.status.conditions | default([])
+                  | selectattr('type', 'equalto', 'Ready')
+                  | selectattr('status', 'equalto', 'True')
+                  | list
+                  | length
+                ) > 0 -%}
+          {%-     set _ = names.append(node.metadata.name) -%}
+          {%-   endif -%}
+          {%- endfor -%}
+          {{ names }}
 
     - name: Show final Ready node set
       ansible.builtin.debug:
@@ -159,9 +180,19 @@
       vars:
         ready_node_names: >-
           {{
-            kubectl_nodes.stdout_lines
-            | select('match', '^[^[:space:]]+[[:space:]]+Ready([[:space:]]|$)')
-            | map('regex_replace', '^([^[:space:]]+).*$', '\\1')
-            | list
-            | sort
+            ready_nodes | sort
           }}
+        ready_nodes: >-
+          {%- set names = [] -%}
+          {%- for node in ((kubectl_nodes.stdout | from_json).items | default([])) -%}
+          {%-   if (
+                  node.status.conditions | default([])
+                  | selectattr('type', 'equalto', 'Ready')
+                  | selectattr('status', 'equalto', 'True')
+                  | list
+                  | length
+                ) > 0 -%}
+          {%-     set _ = names.append(node.metadata.name) -%}
+          {%-   endif -%}
+          {%- endfor -%}
+          {{ names }}

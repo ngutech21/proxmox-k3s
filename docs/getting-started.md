@@ -58,6 +58,14 @@ just provision-vms
 
 This creates or updates the Proxmox VMs and refreshes the generated inventory and stage values.
 
+If you want to run the full standard workflow after filling the two config files, you can use:
+
+```bash
+just up
+```
+
+This runs `just provision-vms`, `just configure-vms`, `just bootstrap-cluster`, and `just install-core` in order.
+
 ## 5. Prepare nodes
 
 ```bash
@@ -110,7 +118,4 @@ The following files are derived artifacts and should never be edited manually:
 
 1. `just init-config`
 2. fill `cluster.tfvars` and `cluster.secrets.tfvars`
-3. `just provision-vms`
-4. `just configure-vms`
-5. `just bootstrap-cluster`
-6. `just install-core`
+3. `just up`

@@ -274,3 +274,10 @@ upgrade-cluster:
 # Reboot all cluster nodes one by one and wait for each node to return.
 restart-nodes:
     ANSIBLE_CONFIG={{ ansible_config }} ansible-playbook 02-configure/playbooks/restart-nodes.yml
+
+
+[working-directory("01-provision")]
+destroy-cluster:
+    terraform destroy \
+      -var-file="{{ terraform_var_file }}" \
+      -var-file="{{ terraform_secret_var_file }}"

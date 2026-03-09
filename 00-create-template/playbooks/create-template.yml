@@ -60,21 +60,47 @@
       ansible.builtin.set_fact:
         proxmox_vms: "{{ proxmox_vms_raw.stdout | from_json }}"
 
-    - name: Abort when template VM ID already exists
+    - name: Resolve existing VM with matching ID
+      ansible.builtin.set_fact:
+        existing_vm_by_id: >-
+          {{
+            proxmox_vms
+            | selectattr('vmid', 'equalto', template_config.vm_id)
+            | list
+            | first
+            | default({})
+          }}
+
+    - name: Resolve existing VM with matching name
+      ansible.builtin.set_fact:
+        existing_vm_by_name: >-
+          {{
+            proxmox_vms
+            | selectattr('name', 'equalto', template_config.template_name)
+            | list
+            | first
+            | default({})
+          }}
+
+    - name: Abort when VM ID belongs to a different VM
       ansible.builtin.assert:
         that:
-          - (proxmox_vms | selectattr('vmid', 'equalto', template_config.vm_id) | list | length) == 0
+          - existing_vm_by_id == {} or existing_vm_by_id.name == template_config.template_name
         fail_msg: >-
           VM ID {{ template_config.vm_id }} already exists on {{ inventory_hostname }}.
           Refusing to overwrite an existing VM or template.
 
-    - name: Abort when template name already exists
+    - name: Abort when template name belongs to a different VM
       ansible.builtin.assert:
         that:
-          - (proxmox_vms | selectattr('name', 'equalto', template_config.template_name) | list | length) == 0
+          - existing_vm_by_name == {} or existing_vm_by_name.vmid == template_config.vm_id
         fail_msg: >-
           Template name {{ template_config.template_name }} already exists on {{ inventory_hostname }}.
           Refusing to overwrite an existing VM or template.
+
+    - name: Determine whether template VM already exists
+      ansible.builtin.set_fact:
+        template_vm_exists: "{{ existing_vm_by_id != {} or existing_vm_by_name != {} }}"
 
   tasks:
     - name: Download Debian Trixie cloud image
@@ -105,6 +131,17 @@
           - serial0
           - --agent
           - enabled=1
+      changed_when: true
+      when: not template_vm_exists
+
+    - name: Read VM configuration before disk import
+      ansible.builtin.command:
+        argv:
+          - qm
+          - config
+          - "{{ template_config.vm_id | string }}"
+      register: qm_config_before_import
+      changed_when: false
 
     - name: Import downloaded disk into Proxmox storage
       ansible.builtin.command:
@@ -114,6 +151,20 @@
           - "{{ template_config.vm_id | string }}"
           - "{{ image_path }}"
           - "{{ template_config.disk_storage }}"
+      changed_when: true
+      when:
+        - (
+            qm_config_before_import.stdout_lines
+            | select('match', '^scsi0:')
+            | list
+            | length
+          ) == 0
+        - (
+            qm_config_before_import.stdout_lines
+            | select('match', '^unused[0-9]+:')
+            | list
+            | length
+          ) == 0
 
     - name: Read VM configuration after disk import
       ansible.builtin.command:
@@ -124,18 +175,112 @@
       register: qm_config_after_import
       changed_when: false
 
-    - name: Extract imported disk volume ID
+    - name: Capture effective VM configuration lines
       ansible.builtin.set_fact:
-        imported_disk_volid: >-
+        qm_effective_config_lines: "{{ qm_config_after_import.stdout_lines }}"
+
+    - name: Extract current scsi0 volume ID
+      ansible.builtin.set_fact:
+        current_scsi0_volid: >-
           {{
-            qm_config_after_import.stdout_lines
-            | select('match', '^unused[0-9]+:')
+            qm_effective_config_lines
+            | select('match', '^scsi0:')
             | map('split', ': ', 1)
             | map('last')
             | map('regex_replace', ',.*$', '')
             | list
             | first
             | default('')
+          }}
+
+    - name: Extract imported disk volume ID
+      ansible.builtin.set_fact:
+        imported_disk_volid: >-
+          {{
+            (
+              [current_scsi0_volid]
+              + (
+                qm_effective_config_lines
+                | select('match', '^unused[0-9]+:')
+                | map('split', ': ', 1)
+                | map('last')
+                | map('regex_replace', ',.*$', '')
+                | list
+              )
+            )
+            | reject('equalto', '')
+            | list
+            | first
+            | default('')
+          }}
+
+    - name: Extract current cloud-init drive
+      ansible.builtin.set_fact:
+        current_ide2_value: >-
+          {{
+            qm_effective_config_lines
+            | select('match', '^ide2:')
+            | map('split', ': ', 1)
+            | map('last')
+            | map('regex_replace', ',.*$', '')
+            | list
+            | first
+            | default('')
+          }}
+
+    - name: Extract current boot order
+      ansible.builtin.set_fact:
+        current_boot_value: >-
+          {{
+            qm_effective_config_lines
+            | select('match', '^boot:')
+            | map('split', ': ', 1)
+            | map('last')
+            | list
+            | first
+            | default('')
+          }}
+
+    - name: Extract current boot disk
+      ansible.builtin.set_fact:
+        current_bootdisk_value: >-
+          {{
+            qm_effective_config_lines
+            | select('match', '^bootdisk:')
+            | map('split', ': ', 1)
+            | map('last')
+            | list
+            | first
+            | default('')
+          }}
+
+    - name: Extract current cloud-init user
+      ansible.builtin.set_fact:
+        current_ciuser_value: >-
+          {{
+            qm_effective_config_lines
+            | select('match', '^ciuser:')
+            | map('split', ': ', 1)
+            | map('last')
+            | list
+            | first
+            | default('')
+          }}
+
+    - name: Detect whether VM is already a template
+      ansible.builtin.set_fact:
+        current_is_template: >-
+          {{
+            qm_effective_config_lines
+            | select('match', '^unused[0-9]+:')
+            | list
+            | length == 0
+            and (
+              qm_effective_config_lines
+              | select('match', '^template:\\s*1$')
+              | list
+              | length
+            ) > 0
           }}
 
     - name: Fail when imported disk cannot be identified
@@ -155,6 +300,8 @@
           - virtio-scsi-pci
           - --scsi0
           - "{{ imported_disk_volid }}"
+      changed_when: true
+      when: current_scsi0_volid | length == 0
 
     - name: Attach cloud-init drive
       ansible.builtin.command:
@@ -164,6 +311,8 @@
           - "{{ template_config.vm_id | string }}"
           - --ide2
           - "{{ template_config.cloudinit_storage }}:cloudinit"
+      changed_when: true
+      when: current_ide2_value != (template_config.cloudinit_storage + ':cloudinit')
 
     - name: Configure boot disk
       ansible.builtin.command:
@@ -175,6 +324,10 @@
           - c
           - --bootdisk
           - scsi0
+      changed_when: true
+      when:
+        - current_boot_value != "c"
+          or current_bootdisk_value != "scsi0"
 
     - name: Set default cloud-init user
       ansible.builtin.command:
@@ -184,6 +337,8 @@
           - "{{ template_config.vm_id | string }}"
           - --ciuser
           - "{{ template_config.cloud_init_user }}"
+      changed_when: true
+      when: current_ciuser_value != template_config.cloud_init_user
 
     - name: Convert VM to template
       ansible.builtin.command:
@@ -191,6 +346,8 @@
           - qm
           - template
           - "{{ template_config.vm_id | string }}"
+      changed_when: true
+      when: not current_is_template
 
     - name: Show created template summary
       ansible.builtin.debug:

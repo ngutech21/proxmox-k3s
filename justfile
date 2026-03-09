@@ -108,6 +108,39 @@ up:
     just configure-vms
     just bootstrap-cluster
     just install-core
+    just print-cluster-info
+
+# Print the main cluster access hints after bootstrap and core install.
+print-cluster-info:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -f "{{ generated_bootstrap_vars }}" ]]; then
+      echo "Missing {{ generated_bootstrap_vars }}. Run 'just provision-vms' or 'just sync-config' first." >&2
+      exit 1
+    fi
+
+    if [[ ! -f "{{ generated_core_values }}" ]]; then
+      echo "Missing {{ generated_core_values }}. Run 'just provision-vms' or 'just sync-config' first." >&2
+      exit 1
+    fi
+
+    api_endpoint="$(sed -nE 's/^api_endpoint:[[:space:]]*"([^"]+)".*/\1/p' "{{ generated_bootstrap_vars }}" | head -n1)"
+    cluster_context="$(sed -nE 's/^cluster_context:[[:space:]]*"([^"]+)".*/\1/p' "{{ generated_bootstrap_vars }}" | head -n1)"
+    longhorn_host="$(sed -nE 's/^[[:space:]]*longhornHost:[[:space:]]*"([^"]+)".*/\1/p' "{{ generated_core_values }}" | head -n1)"
+    domain_suffix="$(sed -nE 's/^[[:space:]]*domainSuffix:[[:space:]]*"([^"]+)".*/\1/p' "{{ generated_core_values }}" | head -n1)"
+
+    printf '\n'
+    echo "Cluster is ready."
+    echo
+    printf 'Control plane (HA API): https://%s:6443\n' "${api_endpoint:-unknown}"
+    printf 'kubectl context: %s\n' "${cluster_context:-proxmox-k3s}"
+    printf 'Longhorn UI: https://%s\n' "${longhorn_host:-unknown}"
+    printf 'Ingress domain suffix: %s\n' "${domain_suffix:-unknown}"
+    echo
+    printf 'Check node status: kubectl --context %s get nodes\n' "${cluster_context:-proxmox-k3s}"
+    printf 'Check all pods: kubectl --context %s get pods -A\n' "${cluster_context:-proxmox-k3s}"
+    echo
 
 # Generate all derived artifacts from Terraform inputs.
 [working-directory("01-provision")]

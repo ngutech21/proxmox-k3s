@@ -216,7 +216,9 @@ Terraform consumes those files and generates the downstream artifacts used by An
 
 ## 🧾 Generated Files
 
-These files are derived and should not be edited manually:
+The `.generated/` directory contains Terraform-derived artifacts and is gitignored on purpose. Do not edit files there manually. Regenerate them with `just sync-config` or `just provision-vms`.
+
+These generated files currently include:
 
 - `ansible/inventory/hosts.yml`
 - `.generated/bootstrap.vars.yml`
